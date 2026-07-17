@@ -4,23 +4,33 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Prabink Shrestha | Civil Engineer & Tech Developer</title>
-  <meta name="description" content="Personal portfolio and engineering tools hub of Prabink Shrestha. Featuring Steel Section properties calculators, Civil Estimators and structural tools.">
+  <meta name="description" content="Personal portfolio and engineering tools hub of Prabink Shrestha. Featuring Steel Section calculators, Civil Estimators, and structural tools.">
+  <!-- Theme is applied before render to prevent flash -->
+  <script>
+    (function() {
+      const t = localStorage.getItem('theme') || 'dark';
+      document.documentElement.setAttribute('data-theme', t);
+    })();
+  </script>
   <link rel="stylesheet" href="css/main.css">
 </head>
 <body>
 
-  <!-- Decorative Background elements -->
   <div class="bg-decorations">
     <div class="bg-grid-lines"></div>
     <div class="bg-glow"></div>
     <div class="bg-glow-secondary"></div>
   </div>
 
-  <div class="app-container">
-    
-    <!-- Sidebar Navigation -->
+  <div class="app-container" id="appContainer">
+
+    <!-- ============================================================
+         SIDEBAR
+    ============================================================ -->
     <aside class="sidebar" id="appSidebar">
-      <div>
+
+      <!-- Logo -->
+      <div class="sidebar-top">
         <a href="#" class="sidebar-logo" onclick="switchView('profile'); return false;">
           <div class="logo-icon">PS</div>
           <div class="logo-text">
@@ -28,96 +38,132 @@
             <span>Civil Engineer</span>
           </div>
         </a>
-        
-        <nav>
-          <ul class="nav-menu">
-            <li class="nav-item active" id="nav-profile">
-              <button onclick="switchView('profile')">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-                  <circle cx="12" cy="7" r="4"></circle>
-                </svg>
-                Profile
-              </button>
-            </li>
-            <li class="nav-item" id="nav-tools">
-              <button onclick="switchView('tools')">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <rect x="3" y="3" width="7" height="9" rx="1"></rect>
-                  <rect x="14" y="3" width="7" height="5" rx="1"></rect>
-                  <rect x="14" y="12" width="7" height="9" rx="1"></rect>
-                  <rect x="3" y="16" width="7" height="5" rx="1"></rect>
-                </svg>
-                Tools Hub
-              </button>
-            </li>
-            <li class="nav-item" id="nav-steel-calc">
-              <button onclick="switchView('steel-calc')">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <rect x="4" y="4" width="16" height="16" rx="2"></rect>
-                  <line x1="9" y1="9" x2="15" y2="15"></line>
-                  <line x1="15" y1="9" x2="9" y2="15"></line>
-                </svg>
-                Steel Section
-              </button>
-            </li>
-            <li class="nav-item" id="nav-civil-est">
-              <button onclick="switchView('civil-est')">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                  <polyline points="14 2 14 8 20 8"></polyline>
-                  <line x1="16" y1="13" x2="8" y2="13"></line>
-                  <line x1="16" y1="17" x2="8" y2="17"></line>
-                  <polyline points="10 9 9 9 8 9"></polyline>
-                </svg>
-                Civil Estimator
-              </button>
-            </li>
-          </ul>
-        </nav>
+
+        <!-- Sidebar collapse toggle (desktop) -->
+        <button class="sidebar-collapse-btn" id="sidebarCollapseBtn" onclick="toggleSidebar()" title="Collapse sidebar">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="15 18 9 12 15 6"></polyline>
+          </svg>
+        </button>
       </div>
 
+      <!-- Nav Menu -->
+      <nav class="sidebar-nav">
+        <ul class="nav-menu">
+
+          <!-- Profile -->
+          <li class="nav-item" id="nav-profile">
+            <button onclick="switchView('profile')">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle>
+              </svg>
+              <span class="nav-label">Profile</span>
+            </button>
+          </li>
+
+          <!-- Tools Hub (collapsible parent) -->
+          <li class="nav-item nav-group" id="nav-tools-group">
+            <button class="nav-group-btn" onclick="toggleToolsMenu()">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="3" width="7" height="9" rx="1"></rect>
+                <rect x="14" y="3" width="7" height="5" rx="1"></rect>
+                <rect x="14" y="12" width="7" height="9" rx="1"></rect>
+                <rect x="3" y="16" width="7" height="5" rx="1"></rect>
+              </svg>
+              <span class="nav-label">Tools Hub</span>
+              <svg class="chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="6 9 12 15 18 9"></polyline>
+              </svg>
+            </button>
+            <!-- Sub-items -->
+            <ul class="nav-submenu" id="toolsSubmenu">
+              <li class="nav-sub-item" id="nav-steel-calc">
+                <button onclick="switchView('steel-calc')">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                  </svg>
+                  <span class="nav-label">Steel Section</span>
+                </button>
+              </li>
+              <li class="nav-sub-item" id="nav-civil-est">
+                <button onclick="switchView('civil-est')">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                    <polyline points="14 2 14 8 20 8"></polyline>
+                  </svg>
+                  <span class="nav-label">Civil Estimator</span>
+                </button>
+              </li>
+            </ul>
+          </li>
+
+          <!-- Letters -->
+          <li class="nav-item" id="nav-letters">
+            <button onclick="switchView('letters')">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+                <polyline points="22,6 12,13 2,6"></polyline>
+              </svg>
+              <span class="nav-label">Letters</span>
+            </button>
+          </li>
+
+        </ul>
+      </nav>
+
+      <!-- Footer -->
       <div class="sidebar-footer">
-        <!-- Light / Dark Theme toggle slider -->
-        <div class="theme-toggle" onclick="toggleTheme()">
-          <div class="theme-slider"></div>
-          <button class="theme-btn active" id="theme-dark-btn">
+        <div class="theme-toggle" onclick="toggleTheme()" title="Toggle theme">
+          <div class="theme-slider" id="themeSlider"></div>
+          <button class="theme-btn" id="theme-dark-btn">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
-            Dark
+            <span class="nav-label">Dark</span>
           </button>
           <button class="theme-btn" id="theme-light-btn">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
-            Light
+            <span class="nav-label">Light</span>
           </button>
         </div>
 
         <div class="social-links">
-          <a href="mailto:contact@prabinkshrestha.com.np" class="social-btn" title="Email Me">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
+          <a href="mailto:contact@prabinkshrestha.com.np" class="social-btn" title="Email">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
           </a>
           <a href="#" class="social-btn" title="LinkedIn">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"></path><rect x="2" y="9" width="4" height="12"></rect><circle cx="4" cy="4" r="2"></circle></svg>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"></path><rect x="2" y="9" width="4" height="12"></rect><circle cx="4" cy="4" r="2"></circle></svg>
           </a>
           <a href="#" class="social-btn" title="GitHub">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"></path></svg>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"></path></svg>
           </a>
         </div>
       </div>
     </aside>
 
-    <!-- Mobile Header/Nav Toggle -->
-    <button class="hamburger" id="navToggle" onclick="toggleMobileMenu()">
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
-    </button>
+    <!-- ============================================================
+         MOBILE TOPBAR
+    ============================================================ -->
+    <div class="mobile-topbar" id="mobileTopbar">
+      <button class="hamburger" onclick="toggleMobileSidebar()" id="hamburgerBtn">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+      </button>
+      <span class="mobile-page-title" id="mobilePageTitle">Profile</span>
+      <button class="theme-icon-btn" onclick="toggleTheme()" title="Toggle theme">
+        <svg id="mobileThemeIcon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+      </button>
+    </div>
 
-    <!-- Main Views Container -->
-    <main class="main-content">
-      
-      <!-- 1. PROFILE VIEW -->
+    <!-- Mobile overlay backdrop -->
+    <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleMobileSidebar()"></div>
+
+    <!-- ============================================================
+         MAIN CONTENT
+    ============================================================ -->
+    <main class="main-content" id="mainContent">
+
+      <!-- ── 1. PROFILE ─────────────────────────────────────── -->
       <section id="view-profile" class="view-panel active">
         <div class="profile-grid">
-          
-          <!-- Avatar Card -->
+
           <div class="profile-card">
             <div class="profile-avatar-wrap">
               <div class="profile-avatar">PS</div>
@@ -125,33 +171,21 @@
             </div>
             <div>
               <h1 class="profile-name">Prabink Shrestha</h1>
-              <p class="profile-title">Civil Engineer & Developer</p>
+              <p class="profile-title">Civil Engineer &amp; Developer</p>
             </div>
-            <p class="profile-bio">
-              Bridging the gap between structural integrity and software engineering. I design modern buildings and write interactive web applications to streamline construction estimation and material analysis.
-            </p>
+            <p class="profile-bio">Bridging the gap between structural integrity and software engineering. I design modern buildings and write interactive web applications to streamline construction estimation and material analysis.</p>
             <div class="profile-stats">
-              <div class="stat-item">
-                <span class="stat-val">5+</span>
-                <span class="stat-lbl">Years Exp</span>
-              </div>
-              <div class="stat-item">
-                <span class="stat-val">20+</span>
-                <span class="stat-lbl">Projects</span>
-              </div>
+              <div class="stat-item"><span class="stat-val">5+</span><span class="stat-lbl">Years Exp</span></div>
+              <div class="stat-item"><span class="stat-val">20+</span><span class="stat-lbl">Projects</span></div>
             </div>
           </div>
 
-          <!-- Bio & Details -->
           <div class="about-section">
             <div>
-              <h2 class="hero-heading">Crafting Resilient Structures & Systems.</h2>
-              <p class="section-subtitle">
-                As a Civil Engineer with a strong passion for tech, I automate structural design workflows and quantity estimation. This portal serves as a showcase of my professional experience and a collection of custom engineering utilities designed to make field computations efficient and simple.
-              </p>
+              <h2 class="hero-heading">Crafting Resilient Structures &amp; Systems.</h2>
+              <p class="section-subtitle">As a Civil Engineer with a strong passion for tech, I automate structural design workflows and quantity estimation. This portal is a showcase of professional experience and a collection of engineering utilities designed for field computations.</p>
             </div>
 
-            <!-- Professional Experience Card -->
             <div class="section-card">
               <h3 class="card-title">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path></svg>
@@ -161,69 +195,48 @@
                 <div class="timeline-item">
                   <div class="timeline-dot"></div>
                   <div class="timeline-content">
-                    <span class="timeline-year">2024 - PRESENT</span>
+                    <span class="timeline-year">2024 — PRESENT</span>
                     <h4 class="timeline-role">Lead Engineer / System Developer</h4>
-                    <span class="timeline-company">Nepal Telecom Project works & Engineering Solutions</span>
-                    <p class="timeline-desc">Designed custom software applications for standard infrastructure estimation sheets, structural modeling, and automated site layouts.</p>
+                    <span class="timeline-company">Nepal Telecom &amp; Engineering Solutions</span>
+                    <p class="timeline-desc">Designed custom software for infrastructure estimation, structural modeling, and automated site layouts.</p>
                   </div>
                 </div>
                 <div class="timeline-item">
                   <div class="timeline-dot"></div>
                   <div class="timeline-content">
-                    <span class="timeline-year">2021 - 2024</span>
-                    <h4 class="timeline-role">Structural Consultant & Quantity Surveyor</h4>
-                    <span class="timeline-company">Independent Contracting & Design Firm</span>
-                    <p class="timeline-desc">Analyzed multistoried RCC frames, calculated structural loads, and developed high-accuracy bill-of-quantities (BOQs).</p>
+                    <span class="timeline-year">2021 — 2024</span>
+                    <h4 class="timeline-role">Structural Consultant &amp; Quantity Surveyor</h4>
+                    <span class="timeline-company">Independent Contracting &amp; Design Firm</span>
+                    <p class="timeline-desc">Analyzed multistoried RCC frames, calculated structural loads, and developed high-accuracy BOQs.</p>
                   </div>
                 </div>
               </div>
             </div>
 
-            <!-- Skills -->
             <div class="section-card">
               <h3 class="card-title">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg>
                 Core Expertise
               </h3>
               <div class="skills-grid">
-                <div class="skill-tag">
-                  <span class="skill-icon">🏗️</span>
-                  <span>Structural Design</span>
-                </div>
-                <div class="skill-tag">
-                  <span class="skill-icon">📊</span>
-                  <span>Quantity Estimation</span>
-                </div>
-                <div class="skill-tag">
-                  <span class="skill-icon">📉</span>
-                  <span>Steel Calculation</span>
-                </div>
-                <div class="skill-tag">
-                  <span class="skill-icon">💻</span>
-                  <span>Web App Dev</span>
-                </div>
-                <div class="skill-tag">
-                  <span class="skill-icon">⚡</span>
-                  <span>Automation</span>
-                </div>
-                <div class="skill-tag">
-                  <span class="skill-icon">📝</span>
-                  <span>Technical Writing</span>
-                </div>
+                <div class="skill-tag"><span class="skill-icon">🏗️</span><span>Structural Design</span></div>
+                <div class="skill-tag"><span class="skill-icon">📊</span><span>Qty Estimation</span></div>
+                <div class="skill-tag"><span class="skill-icon">📐</span><span>Steel Calculation</span></div>
+                <div class="skill-tag"><span class="skill-icon">💻</span><span>Web App Dev</span></div>
+                <div class="skill-tag"><span class="skill-icon">⚡</span><span>Automation</span></div>
+                <div class="skill-tag"><span class="skill-icon">📝</span><span>Tech Writing</span></div>
               </div>
             </div>
-
           </div>
+
         </div>
       </section>
 
-      <!-- 2. TOOLS DASHBOARD VIEW -->
+      <!-- ── 2. TOOLS DASHBOARD ─────────────────────────────── -->
       <section id="view-tools" class="view-panel">
         <h2 class="view-title">Engineering Tools Hub</h2>
-        <p class="view-desc">Select an engineering utility below to calculate section properties, perform site cost estimation, or output standard design results.</p>
-        
+        <p class="view-desc">Select an engineering utility to calculate section properties, estimate costs, or output design results.</p>
         <div class="tools-grid">
-          <!-- Tool 1: Steel Section Calculator -->
           <div class="tool-card" onclick="switchView('steel-calc')">
             <div class="tool-header">
               <div class="tool-icon-box">📐</div>
@@ -231,15 +244,10 @@
             </div>
             <div class="tool-info">
               <h3>Steel Section Calculator</h3>
-              <p>Compute area, centroid, weight, moment of inertia ($I_x, I_y$), and elastic section modulus ($Z_x, Z_y$) with dynamic visual shape drawing.</p>
+              <p>Compute area, centroid, weight, moment of inertia and section modulus with a live SVG cross-section preview.</p>
             </div>
-            <button class="tool-action-btn">
-              Launch Tool
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
-            </button>
+            <button class="tool-action-btn">Launch Tool <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg></button>
           </div>
-
-          <!-- Tool 2: Civil Estimator -->
           <div class="tool-card" onclick="switchView('civil-est')">
             <div class="tool-header">
               <div class="tool-icon-box">📋</div>
@@ -247,24 +255,18 @@
             </div>
             <div class="tool-info">
               <h3>Civil Estimator Sheet</h3>
-              <p>Manage project materials, dimensions, and bill of quantities. Features spreadsheet capabilities, printing, and Excel/CSV exporting.</p>
+              <p>Manage project materials, dimensions, and bill of quantities with print and Excel/CSV exporting capabilities.</p>
             </div>
-            <button class="tool-action-btn">
-              Launch Tool (Password Secured)
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
-            </button>
+            <button class="tool-action-btn">Launch Tool <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg></button>
           </div>
         </div>
       </section>
 
-      <!-- 3. STEEL SECTION CALCULATOR VIEW -->
+      <!-- ── 3. STEEL SECTION CALCULATOR ───────────────────── -->
       <section id="view-steel-calc" class="view-panel">
         <h2 class="view-title">Steel Section Calculator</h2>
-        <p class="view-desc">Choose a section shape, input the dimensions, and get real-time section property calculations with dynamic dimension drawings.</p>
-        
+        <p class="view-desc">Choose a section shape, input dimensions, and get real-time property calculations with a dynamic drawing.</p>
         <div class="calc-container">
-          
-          <!-- Controls -->
           <div class="calc-settings">
             <div class="input-group">
               <label class="input-label" for="steelShape">Section Profile</label>
@@ -272,80 +274,163 @@
                 <option value="ibeam">I-Beam (Universal Beam / Joist)</option>
                 <option value="channel">Channel Section (ISMC / C-Channel)</option>
                 <option value="angle">Angle Section (L-Shape)</option>
-                <option value="box">RHS / SHS (Rectangular/Square Hollow Section)</option>
+                <option value="box">RHS / SHS (Rectangular/Square Hollow)</option>
                 <option value="pipe">CHS (Circular Hollow Section / Pipe)</option>
               </select>
             </div>
-
-            <!-- Dynamic Input Fields Container -->
-            <div id="dynamicInputs" class="inputs-stack">
-              <!-- Filled dynamically by JavaScript -->
-            </div>
-
+            <div id="dynamicInputs" class="inputs-stack"></div>
             <div class="input-group">
               <label class="input-label" for="steelDensity">Material Density <span>(kg/m³)</span></label>
               <input type="number" id="steelDensity" class="input-field" value="7850" step="10" oninput="calculateProperties()">
             </div>
           </div>
-
-          <!-- Display Screen -->
           <div class="calc-display">
-            <!-- Dynamic Vector Preview -->
             <div class="preview-card">
-              <span class="preview-title">Visual Cross Section Drawing</span>
-              <div class="preview-svg-container" id="svgContainer">
-                <!-- SVG injected dynamically -->
-              </div>
+              <span class="preview-title">Visual Cross Section</span>
+              <div class="preview-svg-container" id="svgContainer"></div>
             </div>
-
-            <!-- Calculated Properties Grid -->
             <div class="results-grid">
-              <div class="result-card">
-                <span class="result-lbl">Cross Sectional Area (A)</span>
-                <span class="result-val" id="resArea">0.00 cm²</span>
-              </div>
-              <div class="result-card">
-                <span class="result-lbl">Unit Weight</span>
-                <span class="result-val" id="resWeight">0.00 kg/m</span>
-              </div>
-              <div class="result-card">
-                <span class="result-lbl">Moment of Inertia (I<sub>x</sub>)</span>
-                <span class="result-val" id="resIx">0.00 cm⁴</span>
-              </div>
-              <div class="result-card">
-                <span class="result-lbl">Moment of Inertia (I<sub>y</sub>)</span>
-                <span class="result-val" id="resIy">0.00 cm⁴</span>
-              </div>
-              <div class="result-card">
-                <span class="result-lbl">Section Modulus (Z<sub>x</sub>)</span>
-                <span class="result-val" id="resZx">0.00 cm³</span>
-              </div>
-              <div class="result-card">
-                <span class="result-lbl">Section Modulus (Z<sub>y</sub>)</span>
-                <span class="result-val" id="resZy">0.00 cm³</span>
-              </div>
+              <div class="result-card"><span class="result-lbl">Sectional Area (A)</span><span class="result-val" id="resArea">—</span></div>
+              <div class="result-card"><span class="result-lbl">Unit Weight</span><span class="result-val" id="resWeight">—</span></div>
+              <div class="result-card"><span class="result-lbl">Inertia I<sub>x</sub></span><span class="result-val" id="resIx">—</span></div>
+              <div class="result-card"><span class="result-lbl">Inertia I<sub>y</sub></span><span class="result-val" id="resIy">—</span></div>
+              <div class="result-card"><span class="result-lbl">Modulus Z<sub>x</sub></span><span class="result-val" id="resZx">—</span></div>
+              <div class="result-card"><span class="result-lbl">Modulus Z<sub>y</sub></span><span class="result-val" id="resZy">—</span></div>
             </div>
           </div>
-
         </div>
       </section>
 
-      <!-- 4. CIVIL ESTIMATOR SECURED VIEW -->
-      <section id="view-civil-est" class="view-panel">
-        <h2 class="view-title">Civil Estimator Sheet</h2>
-        <p class="view-desc">Accessing Nepal Telecom Estimate Sheet Tool. Enter your system password PD Civil to view and manage projects.</p>
-        
+      <!-- ── 4. CIVIL ESTIMATOR (iframe) ────────────────────── -->
+      <section id="view-civil-est" class="view-panel view-fullscreen">
         <div class="iframe-container">
           <iframe id="civilEstIframe" src="./tools/civil-estimator/index.html"></iframe>
         </div>
       </section>
 
-    </main>
+      <!-- ── 5. LETTERS ─────────────────────────────────────── -->
+      <section id="view-letters" class="view-panel">
+        <h2 class="view-title">Letters</h2>
+        <p class="view-desc">Upload, tag, and organise scanned correspondence by Provincial Directorate, District and Office.</p>
 
+        <div class="letters-grid">
+
+          <!-- Upload / Metadata Card -->
+          <div class="section-card letters-form-card">
+            <h3 class="card-title">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+              Upload Document
+            </h3>
+
+            <!-- File drop zone -->
+            <div class="file-dropzone" id="fileDropzone" onclick="document.getElementById('letterFile').click()">
+              <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><path d="M12 18v-6"></path><path d="M9 15l3-3 3 3"></path></svg>
+              <p id="dropzoneLabel">Click to upload or drag &amp; drop</p>
+              <span>PDF, PNG, JPG up to 20 MB</span>
+              <input type="file" id="letterFile" accept=".pdf,.png,.jpg,.jpeg" style="display:none" onchange="handleFileSelect(this)">
+            </div>
+
+            <!-- Subject -->
+            <div class="input-group" style="margin-top:1.25rem">
+              <label class="input-label" for="letterSubject">Subject of the Letter</label>
+              <input type="text" id="letterSubject" class="input-field" placeholder="e.g. Approval of Handhole Work – Rupandehi">
+            </div>
+
+            <!-- Date -->
+            <div class="input-group">
+              <label class="input-label" for="letterDate">Date</label>
+              <input type="date" id="letterDate" class="input-field">
+            </div>
+
+            <!-- ─── Cascading Dropdowns ─── -->
+            <div class="cascading-dropdowns">
+
+              <!-- Provincial Directorate -->
+              <div class="dropdown-row">
+                <div class="input-group flex-1">
+                  <label class="input-label" for="selPD">Provincial Directorate</label>
+                  <select id="selPD" class="input-field" onchange="onPDChange()">
+                    <option value="">— Select —</option>
+                  </select>
+                </div>
+                <button class="add-option-btn" onclick="showAddOption('pd')" title="Add new option">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                </button>
+              </div>
+              <div class="add-option-row hidden" id="add-row-pd">
+                <input type="text" class="input-field" id="add-input-pd" placeholder="New Provincial Directorate…">
+                <button class="confirm-add-btn" onclick="confirmAdd('pd')">Add</button>
+              </div>
+
+              <!-- District -->
+              <div class="dropdown-row">
+                <div class="input-group flex-1">
+                  <label class="input-label" for="selDistrict">District</label>
+                  <select id="selDistrict" class="input-field" onchange="onDistrictChange()" disabled>
+                    <option value="">— Select Province first —</option>
+                  </select>
+                </div>
+                <button class="add-option-btn" onclick="showAddOption('district')" title="Add new option">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                </button>
+              </div>
+              <div class="add-option-row hidden" id="add-row-district">
+                <input type="text" class="input-field" id="add-input-district" placeholder="New District…">
+                <button class="confirm-add-btn" onclick="confirmAdd('district')">Add</button>
+              </div>
+
+              <!-- Office -->
+              <div class="dropdown-row">
+                <div class="input-group flex-1">
+                  <label class="input-label" for="selOffice">Office</label>
+                  <select id="selOffice" class="input-field" disabled>
+                    <option value="">— Select District first —</option>
+                  </select>
+                </div>
+                <button class="add-option-btn" onclick="showAddOption('office')" title="Add new option">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                </button>
+              </div>
+              <div class="add-option-row hidden" id="add-row-office">
+                <input type="text" class="input-field" id="add-input-office" placeholder="New Office…">
+                <button class="confirm-add-btn" onclick="confirmAdd('office')">Add</button>
+              </div>
+
+            </div><!-- /cascading-dropdowns -->
+
+            <button class="btn-primary-action" onclick="saveLetterRecord()">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+              Save Letter Record
+            </button>
+          </div>
+
+          <!-- Records List Card -->
+          <div class="section-card letters-list-card">
+            <div class="letters-list-header">
+              <h3 class="card-title" style="margin-bottom:0">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>
+                Saved Records
+              </h3>
+              <input type="text" id="lettersSearch" class="input-field search-input" placeholder="Search by subject…" oninput="renderLettersList()">
+            </div>
+            <div id="lettersList" class="letters-list">
+              <!-- Populated by JS -->
+              <div class="letters-empty-state">
+                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
+                <p>No letters saved yet. Upload and save a record above.</p>
+              </div>
+            </div>
+          </div>
+
+        </div><!-- /letters-grid -->
+      </section>
+
+    </main>
   </div>
 
   <script src="js/main.js"></script>
   <script src="js/steel-calc.js"></script>
+  <script src="js/letters.js"></script>
   <script src="js/firebase-db.js"></script>
 </body>
 </html>

@@ -871,57 +871,544 @@ html, body {
   z-index: 100;
 }
 
-@media (max-width: 900px) {
+/* ==========================================================================
+   SIDEBAR — TOP ROW (logo + collapse button)
+   ========================================================================== */
+.sidebar-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 2rem;
+}
+
+.sidebar-nav {
+  flex-grow: 1;
+  overflow: hidden;
+}
+
+.sidebar-collapse-btn {
+  background: none;
+  border: 1px solid var(--glass-border);
+  color: var(--text-muted);
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.2s ease;
+}
+
+.sidebar-collapse-btn:hover {
+  color: var(--primary);
+  border-color: var(--primary);
+}
+
+.sidebar-collapse-btn.flipped svg {
+  transform: rotate(180deg);
+}
+
+/* ==========================================================================
+   SIDEBAR — COLLAPSED STATE
+   ========================================================================== */
+.sidebar.collapsed {
+  width: 68px;
+}
+
+.sidebar.collapsed .logo-text,
+.sidebar.collapsed .nav-label,
+.sidebar.collapsed .chevron,
+.sidebar.collapsed .social-links,
+.sidebar.collapsed .theme-toggle .nav-label {
+  display: none;
+}
+
+.sidebar.collapsed .sidebar-logo {
+  justify-content: center;
+}
+
+.sidebar.collapsed .nav-item button,
+.sidebar.collapsed .nav-sub-item button {
+  justify-content: center;
+  padding: 0.85rem;
+}
+
+.sidebar.collapsed .nav-submenu {
+  display: none !important;
+}
+
+.sidebar.collapsed .theme-toggle {
+  flex-direction: column;
+  padding: 0.35rem;
+  gap: 0.25rem;
+}
+
+.sidebar.collapsed .theme-btn {
+  padding: 0.35rem;
+}
+
+.app-container.sidebar-collapsed .main-content {
+  /* main content stretches — no extra CSS needed, flex handles it */
+}
+
+/* ==========================================================================
+   SIDEBAR — SUB-MENU (Tools Hub dropdown)
+   ========================================================================== */
+.nav-group-btn {
+  width: 100%;
+  background: none;
+  border: none;
+  padding: 0.85rem 1rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  color: var(--text-secondary);
+  font-family: var(--font-sans);
+  font-size: 0.95rem;
+  font-weight: 500;
+  border-radius: 10px;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.2s ease;
+}
+
+.nav-group-btn:hover {
+  background: rgba(255,255,255,0.03);
+  color: var(--text-primary);
+}
+
+.nav-group.active .nav-group-btn {
+  color: var(--primary);
+}
+
+.nav-group.submenu-open .nav-group-btn .chevron {
+  transform: rotate(180deg);
+}
+
+.nav-group-btn .chevron {
+  margin-left: auto;
+  transition: transform 0.25s ease;
+}
+
+.nav-submenu {
+  list-style: none;
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  padding-left: 1rem;
+}
+
+.nav-submenu.open {
+  max-height: 200px;
+}
+
+.nav-sub-item button {
+  width: 100%;
+  background: none;
+  border: none;
+  padding: 0.6rem 0.85rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  color: var(--text-muted);
+  font-family: var(--font-sans);
+  font-size: 0.88rem;
+  font-weight: 500;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.nav-sub-item button:hover {
+  background: rgba(255,255,255,0.02);
+  color: var(--text-secondary);
+  padding-left: 1.1rem;
+}
+
+.nav-sub-item.active button {
+  background: var(--primary-glow);
+  color: var(--primary);
+}
+
+/* ==========================================================================
+   MOBILE TOPBAR
+   ========================================================================== */
+.mobile-topbar {
+  display: none;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.85rem 1.25rem;
+  background: var(--glass-bg);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--glass-border);
+  position: sticky;
+  top: 0;
+  z-index: 50;
+}
+
+.hamburger {
+  background: none;
+  border: none;
+  color: var(--text-primary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  padding: 0.25rem;
+}
+
+.mobile-page-title {
+  font-weight: 700;
+  font-size: 1rem;
+  color: var(--text-primary);
+}
+
+.theme-icon-btn {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  padding: 0.25rem;
+  transition: color 0.2s;
+}
+
+.theme-icon-btn:hover { color: var(--primary); }
+
+/* Mobile sidebar overlay */
+.sidebar-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.5);
+  backdrop-filter: blur(4px);
+  z-index: 98;
+}
+
+.sidebar-overlay.visible { display: block; }
+
+/* Civil Estimator full-screen view removes padding */
+.view-fullscreen {
+  padding: 0 !important;
+}
+
+/* ==========================================================================
+   LETTERS MODULE
+   ========================================================================== */
+.letters-grid {
+  display: grid;
+  grid-template-columns: 1.1fr 1.4fr;
+  gap: 2rem;
+  max-width: 1200px;
+  align-items: start;
+}
+
+.letters-form-card {
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+}
+
+/* File Dropzone */
+.file-dropzone {
+  border: 2px dashed var(--card-border);
+  border-radius: 14px;
+  padding: 2rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: center;
+  color: var(--text-secondary);
+}
+
+.file-dropzone:hover,
+.file-dropzone.drag-over {
+  border-color: var(--primary);
+  background: var(--primary-glow);
+  color: var(--text-primary);
+}
+
+.file-dropzone.has-file {
+  border-color: var(--success);
+  background: rgba(16, 185, 129, 0.05);
+}
+
+.file-dropzone p {
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.file-dropzone span {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+/* Cascading dropdowns */
+.cascading-dropdowns {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.dropdown-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.5rem;
+}
+
+.flex-1 { flex: 1; }
+
+.add-option-btn {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  background: none;
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  margin-bottom: 0;
+  transition: all 0.2s ease;
+}
+
+.add-option-btn:hover {
+  background: var(--primary);
+  color: white;
+  border-color: var(--primary);
+}
+
+.add-option-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.add-option-row.hidden { display: none; }
+
+.confirm-add-btn {
+  background: var(--primary);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 0.65rem 1rem;
+  font-family: var(--font-sans);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.2s;
+}
+
+.confirm-add-btn:hover { background: var(--primary-hover); }
+
+/* Save button */
+.btn-primary-action {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  width: 100%;
+  background: var(--primary);
+  color: white;
+  border: none;
+  border-radius: 12px;
+  padding: 0.9rem 1.5rem;
+  font-family: var(--font-sans);
+  font-size: 0.95rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.15s, box-shadow 0.2s;
+  margin-top: 0.5rem;
+  box-shadow: 0 4px 15px var(--primary-glow);
+}
+
+.btn-primary-action:hover {
+  background: var(--primary-hover);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px var(--primary-glow);
+}
+
+/* Input error state */
+.input-error {
+  border-color: var(--danger) !important;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.2) !important;
+}
+
+/* Records list */
+.letters-list-card {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  max-height: 75vh;
+}
+
+.letters-list-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.search-input {
+  max-width: 220px;
+  padding: 0.5rem 0.85rem;
+  font-size: 0.85rem;
+}
+
+.letters-list {
+  overflow-y: auto;
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding-right: 0.25rem;
+}
+
+.letters-list::-webkit-scrollbar { width: 4px; }
+.letters-list::-webkit-scrollbar-track { background: transparent; }
+.letters-list::-webkit-scrollbar-thumb { background: var(--card-border); border-radius: 2px; }
+
+.letters-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  padding: 3rem;
+  color: var(--text-muted);
+  text-align: center;
+  font-size: 0.9rem;
+}
+
+.letter-record-item {
+  background: rgba(255,255,255,0.02);
+  border: 1px solid var(--card-border);
+  border-radius: 12px;
+  padding: 1rem 1.1rem;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  transition: border-color 0.2s, transform 0.15s;
+}
+
+.letter-record-item:hover {
+  border-color: var(--primary);
+  transform: translateX(2px);
+}
+
+.rec-main {
+  display: flex;
+  gap: 0.85rem;
+  align-items: flex-start;
+  flex: 1;
+  min-width: 0;
+}
+
+.rec-icon {
+  color: var(--primary);
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.rec-info { display: flex; flex-direction: column; gap: 0.25rem; min-width: 0; }
+
+.rec-subject {
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rec-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.rec-date {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+
+.rec-delete-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 0.35rem;
+  border-radius: 6px;
+  flex-shrink: 0;
+  transition: all 0.2s ease;
+}
+
+.rec-delete-btn:hover { color: var(--danger); background: rgba(239,68,68,0.08); }
+
+/* ==========================================================================
+   RESPONSIVE BREAKPOINTS
+   ========================================================================== */
+@media (max-width: 768px) {
+  html, body { overflow: auto; }
+
   .app-container {
     flex-direction: column;
   }
-  
+
+  /* Hide desktop sidebar by default on mobile */
   .sidebar {
-    width: 100%;
-    height: auto;
-    flex-direction: row;
-    align-items: center;
-    padding: 1rem 1.5rem;
-    border-right: none;
-    border-bottom: 1px solid var(--glass-border);
+    position: fixed;
+    left: 0; top: 0; bottom: 0;
+    width: 280px;
+    transform: translateX(-100%);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 99;
+    overflow-y: auto;
   }
-  
-  .sidebar-logo {
-    margin-bottom: 0;
+
+  .sidebar.mobile-open {
+    transform: translateX(0);
   }
-  
-  .nav-menu, .sidebar-footer {
-    display: none;
+
+  .sidebar-collapse-btn { display: none; }
+
+  .mobile-topbar { display: flex; }
+
+  .main-content {
+    padding-top: 0;
   }
-  
-  .hamburger {
-    display: block;
-  }
-  
+
   .view-panel {
-    padding: 1.5rem;
+    padding: 1.25rem;
+    padding-bottom: 4rem;
   }
-  
-  .profile-grid, .calc-container {
+
+  .view-fullscreen { padding: 0 !important; }
+
+  .profile-grid,
+  .calc-container,
+  .letters-grid {
     grid-template-columns: 1fr;
   }
-  
-  .sidebar.mobile-open {
-    position: fixed;
-    inset: 0;
-    flex-direction: column;
-    justify-content: flex-start;
-    align-items: stretch;
-    gap: 2rem;
-    height: 100%;
-    z-index: 99;
-  }
-  
-  .sidebar.mobile-open .nav-menu {
-    display: flex;
-  }
-  
-  .sidebar.mobile-open .sidebar-footer {
-    display: flex;
-  }
+
+  .hero-heading { font-size: 2rem; }
+
+  .letters-list-card { max-height: none; }
+
+  .letters-list-header { flex-direction: column; align-items: flex-start; }
+  .search-input { max-width: 100%; }
 }
+
