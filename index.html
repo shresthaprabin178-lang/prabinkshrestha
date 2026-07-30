@@ -138,7 +138,7 @@
         </div>
 
         <div class="build-timestamp">
-          Last Pushed: <span>2026-07-30 12:30:00 NPT</span>
+          Last Pushed: <span>2026-07-30 12:35:00 NPT</span>
         </div>
       </div>
     </aside>
@@ -343,13 +343,33 @@
               <input type="text" id="letterSubject" class="input-field" placeholder="e.g. Approval of Handhole Work – Rupandehi">
             </div>
 
-            <!-- BS Date Picker -->
-            <div class="input-group">
-              <label class="input-label">Date (BS - Bikram Sambat)</label>
-              <div class="bs-date-picker">
-                <select id="bsYear" class="input-field bs-date-select" onchange="onBSYearMonthChange()"></select>
-                <select id="bsMonth" class="input-field bs-date-select" onchange="onBSYearMonthChange()"></select>
-                <select id="bsDay" class="input-field bs-date-select"></select>
+            <!-- BS Date Picker (Visual Calendar) -->
+            <div class="input-group bs-date-picker-container">
+              <label class="input-label" for="bsDateDisplay">Date (BS - Bikram Sambat)</label>
+              <div class="bs-date-input-wrap">
+                <input type="text" id="bsDateDisplay" class="input-field bs-date-input" readonly placeholder="Click to choose BS Date..." onclick="toggleBSCalendar(event)">
+                <button type="button" class="bs-cal-toggle-btn" onclick="toggleBSCalendar(event)" title="Open Nepali Calendar">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+                </button>
+              </div>
+
+              <!-- Popup Visual BS Calendar -->
+              <div class="bs-calendar-popover hidden" id="bsCalendarPopover" onclick="event.stopPropagation()">
+                <div class="bs-cal-header">
+                  <button type="button" class="bs-cal-nav" onclick="prevBSMonth()">&lsaquo;</button>
+                  <div class="bs-cal-selects">
+                    <select id="bsCalMonth" class="bs-cal-select" onchange="onBSCalMonthYearChange()"></select>
+                    <select id="bsCalYear" class="bs-cal-select" onchange="onBSCalMonthYearChange()"></select>
+                  </div>
+                  <button type="button" class="bs-cal-nav" onclick="nextBSMonth()">&rsaquo;</button>
+                </div>
+                <div class="bs-cal-weekdays">
+                  <span>आइत</span><span>सोम</span><span>मङ्गल</span><span>बुध</span><span>बिही</span><span>शुक्र</span><span>शनि</span>
+                </div>
+                <div class="bs-cal-days-grid" id="bsCalDaysGrid"></div>
+                <div class="bs-cal-footer">
+                  <button type="button" class="bs-cal-today-btn" onclick="selectTodayBSDate()">आज (Today)</button>
+                </div>
               </div>
             </div>
 

@@ -3,13 +3,6 @@
 // ==========================================================================
 
 // ── Data Store ─────────────────────────────────────────────────────────────
-// Structure:
-// locationsDB = {
-//   "Bhairahawa PD": { districts: { "Rupandehi": ["NT Bhairahawa Office", ...], ... } },
-//   ...
-// }
-// lettersDB = [ { id, subject, date, pd, district, office, fileName, fileData, savedAt }, ... ]
-
 const LOCATIONS_KEY = 'letters_locationsDB';
 const LETTERS_KEY   = 'letters_records';
 
@@ -58,11 +51,8 @@ function saveLetters(arr) {
 }
 
 // ==========================================================================
-// BIKRAM SAMBAT (BS) CONVERSION
+// BIKRAM SAMBAT (BS) CALENDAR & CONVERSION
 // ==========================================================================
-// Each BS year has 12 months with varying days. This lookup table covers
-// BS 2000–2090, which maps to AD 1943–2034 approximately.
-
 const BS_CALENDAR_DATA = {
   2000: [30,32,31,32,31,30,30,30,29,30,29,31],
   2001: [31,31,32,31,31,31,30,29,30,29,30,30],
@@ -166,24 +156,17 @@ const BS_MONTHS = [
 const BS_REF = { year: 2000, month: 1, day: 1 };
 const AD_REF = new Date(1943, 3, 14); // April 14, 1943
 
-/**
- * Convert AD date to BS date
- * @param {Date} adDate - JavaScript Date object
- * @returns {{ year: number, month: number, day: number }} BS date
- */
 function adToBS(adDate) {
-  // Calculate total days from reference AD date
   let totalDays = Math.floor((adDate - AD_REF) / (1000 * 60 * 60 * 24));
-
-  if (totalDays < 0) return null; // Before our lookup range
+  if (totalDays < 0) return null;
 
   let bsYear = BS_REF.year;
-  let bsMonth = BS_REF.month - 1; // 0-indexed
+  let bsMonth = BS_REF.month - 1;
   let bsDay = BS_REF.day;
 
   while (totalDays > 0) {
     const monthData = BS_CALENDAR_DATA[bsYear];
-    if (!monthData) return null; // Beyond lookup range
+    if (!monthData) return null;
 
     const daysInMonth = monthData[bsMonth];
     const daysRemainingInMonth = daysInMonth - bsDay;
@@ -205,100 +188,55 @@ function adToBS(adDate) {
   return { year: bsYear, month: bsMonth + 1, day: bsDay };
 }
 
-/**
- * Get days in a given BS month
- */
 function getDaysInBSMonth(bsYear, bsMonth) {
   const data = BS_CALENDAR_DATA[bsYear];
-  if (!data) return 30; // fallback
+  if (!data) return 30;
   return data[bsMonth - 1] || 30;
 }
 
-/**
- * Populate the BS date dropdowns with today's BS date pre-selected
- */
+// ── Visual BS Calendar State ─────────────────────────────────────────────────
+let selectedBSDate = null; // { year, month, day }
+let pickerBSYear = 2083;
+let pickerBSMonth = 4; // 1-indexed
+
 function initBSDatePicker() {
-  const yearSel = document.getElementById('bsYear');
-  const monthSel = document.getElementById('bsMonth');
-  const daySel = document.getElementById('bsDay');
-  if (!yearSel || !monthSel || !daySel) return;
-
-  // Get today's BS date
   const today = adToBS(new Date());
-  const defaultYear = today ? today.year : 2083;
-  const defaultMonth = today ? today.month : 1;
-  const defaultDay = today ? today.day : 1;
-
-  // Populate years (2070-2090 for practical range)
-  yearSel.innerHTML = '<option value="">साल</option>';
-  for (let y = 2090; y >= 2070; y--) {
-    const opt = document.createElement('option');
-    opt.value = y;
-    opt.textContent = y;
-    if (y === defaultYear) opt.selected = true;
-    yearSel.appendChild(opt);
+  if (today) {
+    selectedBSDate = { year: today.year, month: today.month, day: today.day };
+    pickerBSYear = today.year;
+    pickerBSMonth = today.month;
+  } else {
+    selectedBSDate = { year: 2083, month: 4, day: 15 };
+    pickerBSYear = 2083;
+    pickerBSMonth = 4;
   }
-
-  // Populate months
-  monthSel.innerHTML = '<option value="">महिना</option>';
-  BS_MONTHS.forEach((name, i) => {
-    const opt = document.createElement('option');
-    opt.value = i + 1;
-    opt.textContent = `${name} (${i + 1})`;
-    if (i + 1 === defaultMonth) opt.selected = true;
-    monthSel.appendChild(opt);
-  });
-
-  // Populate days
-  updateBSDays(defaultYear, defaultMonth, defaultDay);
+  updateBSDateDisplay();
+  populateBSCalSelects();
+  renderBSCalendarGrid();
 }
 
-function updateBSDays(year, month, selectedDay) {
-  const daySel = document.getElementById('bsDay');
-  if (!daySel) return;
-
-  const maxDays = getDaysInBSMonth(year || 2083, month || 1);
-  daySel.innerHTML = '<option value="">गते</option>';
-  for (let d = 1; d <= maxDays; d++) {
-    const opt = document.createElement('option');
-    opt.value = d;
-    opt.textContent = d;
-    if (d === selectedDay) opt.selected = true;
-    daySel.appendChild(opt);
+function updateBSDateDisplay() {
+  const input = document.getElementById('bsDateDisplay');
+  if (!input) return;
+  if (!selectedBSDate) {
+    input.value = '';
+    return;
   }
+  const monthName = BS_MONTHS[selectedBSDate.month - 1] || '';
+  input.value = `${selectedBSDate.year}/${String(selectedBSDate.month).padStart(2, '0')}/${String(selectedBSDate.day).padStart(2, '0')} BS (${selectedBSDate.day} ${monthName} ${selectedBSDate.year})`;
 }
 
-function onBSYearMonthChange() {
-  const year = parseInt(document.getElementById('bsYear')?.value);
-  const month = parseInt(document.getElementById('bsMonth')?.value);
-  const currentDay = parseInt(document.getElementById('bsDay')?.value) || 1;
-  updateBSDays(year, month, currentDay);
-}
-
-/**
- * Get the formatted BS date string from the selectors
- */
 function getBSDateString() {
-  const year = document.getElementById('bsYear')?.value;
-  const month = document.getElementById('bsMonth')?.value;
-  const day = document.getElementById('bsDay')?.value;
-
-  if (!year || !month || !day) {
-    // Fallback to today's BS date
+  if (!selectedBSDate) {
     const today = adToBS(new Date());
-    if (today) {
-      return `${today.year}/${String(today.month).padStart(2, '0')}/${String(today.day).padStart(2, '0')} BS`;
-    }
-    return '';
+    if (today) return `${today.year}/${String(today.month).padStart(2, '0')}/${String(today.day).padStart(2, '0')} BS`;
+    return '2083/04/15 BS';
   }
-
-  const monthName = BS_MONTHS[parseInt(month) - 1] || '';
-  return `${year}/${String(month).padStart(2, '0')}/${String(day).padStart(2, '0')} BS`;
+  return `${selectedBSDate.year}/${String(selectedBSDate.month).padStart(2, '0')}/${String(selectedBSDate.day).padStart(2, '0')} BS`;
 }
 
 function getBSDateDisplay(dateStr) {
-  // dateStr format: "2083/04/15 BS"
-  if (!dateStr || !dateStr.includes('BS')) return dateStr;
+  if (!dateStr || !dateStr.includes('BS')) return dateStr || '';
   const parts = dateStr.replace(' BS', '').split('/');
   if (parts.length !== 3) return dateStr;
   const monthIndex = parseInt(parts[1]) - 1;
@@ -306,8 +244,145 @@ function getBSDateDisplay(dateStr) {
   return `${parts[2]} ${monthName} ${parts[0]} BS`;
 }
 
+function toggleBSCalendar(e) {
+  if (e) e.stopPropagation();
+  const popover = document.getElementById('bsCalendarPopover');
+  if (!popover) return;
+  popover.classList.toggle('hidden');
+  if (!popover.classList.contains('hidden')) {
+    populateBSCalSelects();
+    renderBSCalendarGrid();
+  }
+}
 
-// ── Selected file reference ─────────────────────────────────────────────────
+function closeBSCalendar() {
+  const popover = document.getElementById('bsCalendarPopover');
+  if (popover) popover.classList.add('hidden');
+}
+
+// Close popover when clicking outside
+document.addEventListener('click', (e) => {
+  const popover = document.getElementById('bsCalendarPopover');
+  const container = document.querySelector('.bs-date-picker-container');
+  if (popover && !popover.classList.contains('hidden')) {
+    if (container && !container.contains(e.target)) {
+      closeBSCalendar();
+    }
+  }
+});
+
+function populateBSCalSelects() {
+  const monthSel = document.getElementById('bsCalMonth');
+  const yearSel = document.getElementById('bsCalYear');
+  if (!monthSel || !yearSel) return;
+
+  monthSel.innerHTML = BS_MONTHS.map((name, i) =>
+    `<option value="${i + 1}" ${i + 1 === pickerBSMonth ? 'selected' : ''}>${name} (${i + 1})</option>`
+  ).join('');
+
+  const years = [];
+  for (let y = 2090; y >= 2070; y--) {
+    years.push(`<option value="${y}" ${y === pickerBSYear ? 'selected' : ''}>${y}</option>`);
+  }
+  yearSel.innerHTML = years.join('');
+}
+
+function onBSCalMonthYearChange() {
+  const monthSel = document.getElementById('bsCalMonth');
+  const yearSel = document.getElementById('bsCalYear');
+  if (monthSel) pickerBSMonth = parseInt(monthSel.value) || 1;
+  if (yearSel) pickerBSYear = parseInt(yearSel.value) || 2083;
+  renderBSCalendarGrid();
+}
+
+function prevBSMonth() {
+  pickerBSMonth--;
+  if (pickerBSMonth < 1) {
+    pickerBSMonth = 12;
+    pickerBSYear--;
+  }
+  populateBSCalSelects();
+  renderBSCalendarGrid();
+}
+
+function nextBSMonth() {
+  pickerBSMonth++;
+  if (pickerBSMonth > 12) {
+    pickerBSMonth = 1;
+    pickerBSYear++;
+  }
+  populateBSCalSelects();
+  renderBSCalendarGrid();
+}
+
+function getBSMonthStartWeekday(bsYear, bsMonth) {
+  let totalDays = 0;
+  for (let y = 2000; y < bsYear; y++) {
+    const yearData = BS_CALENDAR_DATA[y];
+    if (yearData) {
+      totalDays += yearData.reduce((a, b) => a + b, 0);
+    } else {
+      totalDays += 365;
+    }
+  }
+  const currentYearData = BS_CALENDAR_DATA[bsYear] || Array(12).fill(30);
+  for (let m = 1; m < bsMonth; m++) {
+    totalDays += (currentYearData[m - 1] || 30);
+  }
+  // Ref date (2000/01/01) was Wednesday (day index 3)
+  return (3 + totalDays) % 7;
+}
+
+function renderBSCalendarGrid() {
+  const grid = document.getElementById('bsCalDaysGrid');
+  if (!grid) return;
+
+  const startWeekday = getBSMonthStartWeekday(pickerBSYear, pickerBSMonth);
+  const maxDays = getDaysInBSMonth(pickerBSYear, pickerBSMonth);
+  const today = adToBS(new Date());
+
+  let html = '';
+
+  // Blank placeholder cells
+  for (let i = 0; i < startWeekday; i++) {
+    html += `<div class="bs-cal-day empty"></div>`;
+  }
+
+  // Day buttons
+  for (let d = 1; d <= maxDays; d++) {
+    const isToday = today && today.year === pickerBSYear && today.month === pickerBSMonth && today.day === d;
+    const isSelected = selectedBSDate && selectedBSDate.year === pickerBSYear && selectedBSDate.month === pickerBSMonth && selectedBSDate.day === d;
+
+    let classes = 'bs-cal-day';
+    if (isToday) classes += ' is-today';
+    if (isSelected) classes += ' is-selected';
+
+    html += `<button type="button" class="${classes}" onclick="selectBSDay(${d})">${d}</button>`;
+  }
+
+  grid.innerHTML = html;
+}
+
+function selectBSDay(day) {
+  selectedBSDate = { year: pickerBSYear, month: pickerBSMonth, day: day };
+  updateBSDateDisplay();
+  closeBSCalendar();
+}
+
+function selectTodayBSDate() {
+  const today = adToBS(new Date());
+  if (today) {
+    selectedBSDate = { year: today.year, month: today.month, day: today.day };
+    pickerBSYear = today.year;
+    pickerBSMonth = today.month;
+    updateBSDateDisplay();
+    populateBSCalSelects();
+    renderBSCalendarGrid();
+    closeBSCalendar();
+  }
+}
+
+// ── Selected File & Preview State ───────────────────────────────────────────
 let selectedFile = null;
 let selectedFileData = null; // base64 data URL
 
@@ -315,7 +390,6 @@ function handleFileSelect(input) {
   const file = input.files[0];
   if (!file) return;
 
-  // Enforce 200KB limit with exact requested message
   if (file.size > MAX_FILE_SIZE_BYTES) {
     alert(`File size too large. (Maximum allowed size is ${MAX_FILE_SIZE_KB}KB)`);
     input.value = '';
@@ -332,7 +406,6 @@ function handleFileSelect(input) {
 
   selectedFile = file;
 
-  // Read file as base64 for storage and preview
   const reader = new FileReader();
   reader.onload = (e) => {
     selectedFileData = e.target.result;
@@ -356,8 +429,13 @@ function showUploadPreview(dataUrl, fileName) {
   const isImage = /\.(jpg|jpeg|png)$/i.test(fileName) || dataUrl.startsWith('data:image');
   if (isImage) {
     preview.innerHTML = `
-      <img src="${dataUrl}" alt="Preview" class="upload-preview-img" onclick="openLightbox('${dataUrl.replace(/'/g, "\\'")}')">
-      <span class="upload-preview-label">📎 ${escHtml(fileName)}</span>
+      <img src="${dataUrl}" alt="Preview" class="upload-preview-img" onclick="openLightboxFromPreview()">
+      <div class="upload-preview-info">
+        <span class="upload-preview-label">📎 ${escHtml(fileName)}</span>
+        <button type="button" class="btn-preview-photo" onclick="openLightboxFromPreview()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg> View Photo Preview
+        </button>
+      </div>
     `;
     preview.style.display = 'flex';
   } else {
@@ -368,6 +446,12 @@ function showUploadPreview(dataUrl, fileName) {
       <span class="upload-preview-label">📎 ${escHtml(fileName)}</span>
     `;
     preview.style.display = 'flex';
+  }
+}
+
+function openLightboxFromPreview() {
+  if (selectedFileData) {
+    openLightbox(selectedFileData, selectedFile ? selectedFile.name : 'Uploaded Photo');
   }
 }
 
@@ -407,12 +491,10 @@ window.addEventListener('DOMContentLoaded', () => {
   initLetters();
 });
 
-// Run initLetters immediately if DOM is already loaded
 if (document.readyState === 'interactive' || document.readyState === 'complete') {
   initLetters();
 }
 
-// ── Initialise dropdowns ────────────────────────────────────────────────────
 function initLetters() {
   populatePDDropdown();
   initBSDatePicker();
@@ -441,7 +523,6 @@ function onPDChange() {
   const distSel  = document.getElementById('selDistrict');
   const offSel   = document.getElementById('selOffice');
 
-  // Reset child selects
   distSel.innerHTML = '<option value="">— Select —</option>';
   offSel.innerHTML  = '<option value="">— Select District first —</option>';
   offSel.disabled   = true;
@@ -480,7 +561,6 @@ function onDistrictChange() {
   });
 }
 
-// ── Inline Add-Option ───────────────────────────────────────────────────────
 function showAddOption(level) {
   const row = document.getElementById(`add-row-${level}`);
   if (!row) return;
@@ -528,12 +608,10 @@ function confirmAdd(level) {
     document.getElementById('selOffice').value = value;
   }
 
-  // Clear and hide
   if (input) input.value = '';
   showAddOption(level);
 }
 
-// Allow Enter key in add-inputs
 document.addEventListener('keydown', e => {
   if (e.key !== 'Enter') return;
   if (e.target.id === 'add-input-pd')       confirmAdd('pd');
@@ -582,7 +660,7 @@ function saveLetterRecord() {
 
     // Reset form
     document.getElementById('letterSubject').value = '';
-    initBSDatePicker(); // Reset to today's date
+    initBSDatePicker();
     document.getElementById('selPD').value         = '';
     onPDChange();
     selectedFile = null;
@@ -611,9 +689,18 @@ function highlight(id) {
   setTimeout(() => el.classList.remove('input-error'), 1500);
 }
 
-// ── Lightbox ────────────────────────────────────────────────────────────────
-function openLightbox(src) {
-  // Remove existing lightbox if any
+// ── Lightbox & Photo Viewer ─────────────────────────────────────────────────
+function viewLetterPhoto(id) {
+  const letters = loadLetters();
+  const item = letters.find(l => l.id === id);
+  if (!item || !item.fileData) {
+    alert('No photo attachment available for this record.');
+    return;
+  }
+  openLightbox(item.fileData, item.fileName);
+}
+
+function openLightbox(src, fileName) {
   closeLightbox();
 
   const overlay = document.createElement('div');
@@ -621,22 +708,29 @@ function openLightbox(src) {
   overlay.id = 'lightboxOverlay';
   overlay.onclick = (e) => { if (e.target === overlay) closeLightbox(); };
 
+  const isImage = src.startsWith('data:image') || /\.(jpg|jpeg|png)$/i.test(fileName || '');
+
   overlay.innerHTML = `
     <div class="lightbox-content">
-      <button class="lightbox-close" onclick="closeLightbox()" title="Close">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-          <line x1="18" y1="6" x2="6" y2="18"></line>
-          <line x1="6" y1="6" x2="18" y2="18"></line>
-        </svg>
-      </button>
-      <img src="${src}" alt="Letter document" class="lightbox-img">
+      <div class="lightbox-header">
+        <span class="lightbox-title">📎 ${escHtml(fileName || 'Photo Document')}</span>
+        <div class="lightbox-actions">
+          <a href="${src}" download="${escHtml(fileName || 'photo')}" class="lightbox-btn download-btn">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg> Download
+          </a>
+          <button type="button" class="lightbox-close-btn" onclick="closeLightbox()" title="Close">✕</button>
+        </div>
+      </div>
+      <div class="lightbox-body">
+        ${isImage
+          ? `<img src="${src}" alt="${escHtml(fileName || 'Photo')}" class="lightbox-img">`
+          : `<iframe src="${src}" class="lightbox-iframe"></iframe>`}
+      </div>
     </div>
   `;
 
   document.body.appendChild(overlay);
   requestAnimationFrame(() => overlay.classList.add('active'));
-
-  // Close on Escape key
   document.addEventListener('keydown', lightboxEscHandler);
 }
 
@@ -675,15 +769,16 @@ function renderLettersList() {
   container.innerHTML = letters.map(l => {
     const dateDisplay = getBSDateDisplay(l.date);
     const hasImage = l.fileData && l.fileData.startsWith('data:image');
+
     const thumbnailHtml = hasImage
-      ? `<div class="rec-thumbnail" onclick="event.stopPropagation(); openLightbox('${l.fileData.replace(/'/g, "\\'")}')">
+      ? `<div class="rec-thumbnail" onclick="event.stopPropagation(); viewLetterPhoto(${l.id})" title="Click to view photo">
            <img src="${l.fileData}" alt="${escHtml(l.fileName || 'photo')}" loading="lazy">
            <div class="rec-thumbnail-overlay">
              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
            </div>
          </div>`
       : (l.fileData
-        ? `<div class="rec-file-badge" title="${escHtml(l.fileName || 'file')}">
+        ? `<div class="rec-file-badge" onclick="event.stopPropagation(); viewLetterPhoto(${l.id})" title="Click to view file">
              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
            </div>`
         : '');
@@ -701,12 +796,21 @@ function renderLettersList() {
             ${l.district !== '—' ? `<span>›</span><span>${escHtml(l.district)}</span>` : ''}
             ${l.office   !== '—' ? `<span>›</span><span>${escHtml(l.office)}</span>`   : ''}
           </div>
-          <div class="rec-date">${dateDisplay} &nbsp;·&nbsp; ${l.savedAt}${l.fileName ? ` &nbsp;·&nbsp; 📎 ${escHtml(l.fileName)}` : ''}</div>
+          <div class="rec-date">
+            ${dateDisplay} &nbsp;·&nbsp; ${l.savedAt}
+            ${l.fileName ? ` &nbsp;·&nbsp; <span class="rec-file-link" onclick="event.stopPropagation(); viewLetterPhoto(${l.id})" title="Click to view photo">📎 ${escHtml(l.fileName)}</span>` : ''}
+          </div>
         </div>
       </div>
-      <button class="rec-delete-btn" onclick="deleteLetterRecord(${l.id})" title="Delete record">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-1 14H6L5 6"></path><path d="M10 11v6"></path><path d="M14 11v6"></path><path d="M9 6V4h6v2"></path></svg>
-      </button>
+      <div class="rec-actions">
+        ${l.fileData ? `<button type="button" class="rec-view-btn" onclick="event.stopPropagation(); viewLetterPhoto(${l.id})" title="View uploaded photo">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+          <span>View Photo</span>
+        </button>` : ''}
+        <button type="button" class="rec-delete-btn" onclick="event.stopPropagation(); deleteLetterRecord(${l.id})" title="Delete record">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-1 14H6L5 6"></path><path d="M10 11v6"></path><path d="M14 11v6"></path><path d="M9 6V4h6v2"></path></svg>
+        </button>
+      </div>
     </div>
   `;
   }).join('');
