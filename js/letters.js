@@ -315,9 +315,9 @@ function handleFileSelect(input) {
   const file = input.files[0];
   if (!file) return;
 
-  // Enforce 200KB limit
+  // Enforce 200KB limit with exact requested message
   if (file.size > MAX_FILE_SIZE_BYTES) {
-    alert(`File size exceeds ${MAX_FILE_SIZE_KB}KB limit.\nSelected file: ${(file.size / 1024).toFixed(1)}KB\nPlease choose a smaller photo.`);
+    alert(`File size too large. (Maximum allowed size is ${MAX_FILE_SIZE_KB}KB)`);
     input.value = '';
     selectedFile = null;
     selectedFileData = null;
@@ -325,7 +325,6 @@ function handleFileSelect(input) {
     if (label) { label.textContent = 'Click to upload or drag & drop'; label.style.color = ''; }
     const zone = document.getElementById('fileDropzone');
     if (zone) zone.classList.remove('has-file');
-    // Hide preview
     const preview = document.getElementById('uploadPreview');
     if (preview) preview.style.display = 'none';
     return;
@@ -337,7 +336,6 @@ function handleFileSelect(input) {
   const reader = new FileReader();
   reader.onload = (e) => {
     selectedFileData = e.target.result;
-    // Show preview thumbnail
     showUploadPreview(selectedFileData, file.name);
   };
   reader.readAsDataURL(file);
@@ -385,9 +383,8 @@ window.addEventListener('DOMContentLoaded', () => {
     zone.classList.remove('drag-over');
     const file = e.dataTransfer.files[0];
     if (file) {
-      // Enforce 200KB limit
       if (file.size > MAX_FILE_SIZE_BYTES) {
-        alert(`File size exceeds ${MAX_FILE_SIZE_KB}KB limit.\nSelected file: ${(file.size / 1024).toFixed(1)}KB\nPlease choose a smaller photo.`);
+        alert(`File size too large. (Maximum allowed size is ${MAX_FILE_SIZE_KB}KB)`);
         return;
       }
 
@@ -541,49 +538,64 @@ document.addEventListener('keydown', e => {
 
 // ── Save Record ─────────────────────────────────────────────────────────────
 function saveLetterRecord() {
-  const subject  = document.getElementById('letterSubject')?.value.trim();
-  const bsDate   = getBSDateString();
-  const pd       = document.getElementById('selPD')?.value;
-  const district = document.getElementById('selDistrict')?.value;
-  const office   = document.getElementById('selOffice')?.value;
+  try {
+    const subject  = document.getElementById('letterSubject')?.value.trim();
+    const bsDate   = getBSDateString();
+    const pd       = document.getElementById('selPD')?.value;
+    const district = document.getElementById('selDistrict')?.value;
+    const office   = document.getElementById('selOffice')?.value;
 
-  if (!subject) { highlight('letterSubject'); return; }
-  if (!pd)      { highlight('selPD');         return; }
+    if (!subject) { highlight('letterSubject'); return; }
+    if (!pd)      { highlight('selPD');         return; }
 
-  const record = {
-    id:       Date.now(),
-    subject,
-    date:     bsDate || getBSDateString(),
-    pd,
-    district: district || '—',
-    office:   office   || '—',
-    fileName: selectedFile ? selectedFile.name : null,
-    fileData: selectedFileData || null,
-    savedAt:  new Date().toLocaleString(),
-  };
+    const record = {
+      id:       Date.now(),
+      subject,
+      date:     bsDate,
+      pd,
+      district: district || '—',
+      office:   office   || '—',
+      fileName: selectedFile ? selectedFile.name : null,
+      fileData: selectedFileData || null,
+      savedAt:  new Date().toLocaleString(),
+    };
 
-  const letters = loadLetters();
-  letters.unshift(record);
-  saveLetters(letters);
+    const letters = loadLetters();
+    letters.unshift(record);
 
-  // Reset form
-  document.getElementById('letterSubject').value = '';
-  initBSDatePicker(); // Reset to today's date
-  document.getElementById('selPD').value         = '';
-  onPDChange();
-  selectedFile = null;
-  selectedFileData = null;
-  const label = document.getElementById('dropzoneLabel');
-  if (label) { label.textContent = 'Click to upload or drag & drop'; label.style.color = ''; }
-  const zone = document.getElementById('fileDropzone');
-  if (zone) zone.classList.remove('has-file');
-  const preview = document.getElementById('uploadPreview');
-  if (preview) { preview.style.display = 'none'; preview.innerHTML = ''; }
-  // Reset file input
-  const fileInput = document.getElementById('letterFile');
-  if (fileInput) fileInput.value = '';
+    try {
+      saveLetters(letters);
+    } catch (e) {
+      if (e.name === 'QuotaExceededError' || e.code === 22) {
+        alert('Storage quota exceeded! Saving letter record without photo attachment.');
+        record.fileData = null;
+        saveLetters(letters);
+      } else {
+        throw e;
+      }
+    }
 
-  renderLettersList();
+    // Reset form
+    document.getElementById('letterSubject').value = '';
+    initBSDatePicker(); // Reset to today's date
+    document.getElementById('selPD').value         = '';
+    onPDChange();
+    selectedFile = null;
+    selectedFileData = null;
+    const label = document.getElementById('dropzoneLabel');
+    if (label) { label.textContent = 'Click to upload or drag & drop'; label.style.color = ''; }
+    const zone = document.getElementById('fileDropzone');
+    if (zone) zone.classList.remove('has-file');
+    const preview = document.getElementById('uploadPreview');
+    if (preview) { preview.style.display = 'none'; preview.innerHTML = ''; }
+    const fileInput = document.getElementById('letterFile');
+    if (fileInput) fileInput.value = '';
+
+    renderLettersList();
+  } catch (err) {
+    console.error('Failed to save letter record:', err);
+    alert('An error occurred while saving the letter record. Please try again.');
+  }
 }
 
 function highlight(id) {
