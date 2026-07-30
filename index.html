@@ -326,9 +326,12 @@
             <div class="file-dropzone" id="fileDropzone" onclick="document.getElementById('letterFile').click()">
               <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><path d="M12 18v-6"></path><path d="M9 15l3-3 3 3"></path></svg>
               <p id="dropzoneLabel">Click to upload or drag &amp; drop</p>
-              <span>PDF, PNG, JPG up to 20 MB</span>
-              <input type="file" id="letterFile" accept=".pdf,.png,.jpg,.jpeg" style="display:none" onchange="handleFileSelect(this)">
+              <span>PNG, JPG up to 200 KB</span>
+              <input type="file" id="letterFile" accept=".png,.jpg,.jpeg" style="display:none" onchange="handleFileSelect(this)">
             </div>
+
+            <!-- Upload preview -->
+            <div class="upload-preview" id="uploadPreview" style="display:none"></div>
 
             <!-- Subject -->
             <div class="input-group" style="margin-top:1.25rem">
@@ -336,10 +339,14 @@
               <input type="text" id="letterSubject" class="input-field" placeholder="e.g. Approval of Handhole Work – Rupandehi">
             </div>
 
-            <!-- Date -->
+            <!-- BS Date Picker -->
             <div class="input-group">
-              <label class="input-label" for="letterDate">Date</label>
-              <input type="date" id="letterDate" class="input-field">
+              <label class="input-label">Date (BS - Bikram Sambat)</label>
+              <div class="bs-date-picker">
+                <select id="bsYear" class="input-field bs-date-select" onchange="onBSYearMonthChange()"></select>
+                <select id="bsMonth" class="input-field bs-date-select" onchange="onBSYearMonthChange()"></select>
+                <select id="bsDay" class="input-field bs-date-select"></select>
+              </div>
             </div>
 
             <!-- ─── Cascading Dropdowns ─── -->
