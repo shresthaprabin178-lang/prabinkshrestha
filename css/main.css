@@ -303,6 +303,20 @@ html, body {
   transform: translateY(-2px);
 }
 
+.build-timestamp {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  margin-top: 0.6rem;
+  text-align: center;
+  opacity: 0.85;
+}
+
+.build-timestamp span {
+  color: var(--primary);
+  font-weight: 600;
+}
+
 /* Main Content Area */
 .main-content {
   flex-grow: 1;

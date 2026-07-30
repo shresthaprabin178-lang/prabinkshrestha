@@ -371,41 +371,46 @@ function showUploadPreview(dataUrl, fileName) {
   }
 }
 
-// Drag-and-drop wiring
+// Drag-and-drop wiring & auto-initialization
 window.addEventListener('DOMContentLoaded', () => {
   const zone = document.getElementById('fileDropzone');
-  if (!zone) return;
+  if (zone) {
+    zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag-over'); });
+    zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
+    zone.addEventListener('drop', e => {
+      e.preventDefault();
+      zone.classList.remove('drag-over');
+      const file = e.dataTransfer.files[0];
+      if (file) {
+        if (file.size > MAX_FILE_SIZE_BYTES) {
+          alert(`File size too large. (Maximum allowed size is ${MAX_FILE_SIZE_KB}KB)`);
+          return;
+        }
 
-  zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag-over'); });
-  zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
-  zone.addEventListener('drop', e => {
-    e.preventDefault();
-    zone.classList.remove('drag-over');
-    const file = e.dataTransfer.files[0];
-    if (file) {
-      if (file.size > MAX_FILE_SIZE_BYTES) {
-        alert(`File size too large. (Maximum allowed size is ${MAX_FILE_SIZE_KB}KB)`);
-        return;
+        selectedFile = file;
+        document.getElementById('letterFile').files = e.dataTransfer.files;
+
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          selectedFileData = ev.target.result;
+          showUploadPreview(selectedFileData, file.name);
+        };
+        reader.readAsDataURL(file);
+
+        const label = document.getElementById('dropzoneLabel');
+        if (label) { label.textContent = `✓ ${file.name} (${(file.size / 1024).toFixed(1)}KB)`; label.style.color = 'var(--success)'; }
+        zone.classList.add('has-file');
       }
-
-      selectedFile = file;
-      document.getElementById('letterFile').files = e.dataTransfer.files;
-
-      const reader = new FileReader();
-      reader.onload = (ev) => {
-        selectedFileData = ev.target.result;
-        showUploadPreview(selectedFileData, file.name);
-      };
-      reader.readAsDataURL(file);
-
-      const label = document.getElementById('dropzoneLabel');
-      if (label) { label.textContent = `✓ ${file.name} (${(file.size / 1024).toFixed(1)}KB)`; label.style.color = 'var(--success)'; }
-      zone.classList.add('has-file');
-    }
-  });
+    });
+  }
 
   initLetters();
 });
+
+// Run initLetters immediately if DOM is already loaded
+if (document.readyState === 'interactive' || document.readyState === 'complete') {
+  initLetters();
+}
 
 // ── Initialise dropdowns ────────────────────────────────────────────────────
 function initLetters() {
