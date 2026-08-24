@@ -585,6 +585,7 @@ function showFirebaseConfigModal() {
     modal = document.createElement("div");
     modal.id = "firebaseConfigModal";
     modal.className = "lightbox-overlay active";
+    modal.style.zIndex = "99999"; // Must be above auth-gate-overlay (z-index: 9999)
     modal.innerHTML = `
       <div class="lightbox-content" style="max-width: 580px; background: var(--bg-color); border: 1px solid var(--card-border); padding: 1.5rem; border-radius: 16px;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
