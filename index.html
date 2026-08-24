@@ -138,7 +138,7 @@
         </div>
 
         <div class="build-timestamp">
-          Last Pushed: <span>2026-07-30 12:35:00 NPT</span>
+          Last Pushed: <span>2026-07-30 12:40:00 NPT</span>
         </div>
       </div>
     </aside>
@@ -317,14 +317,22 @@
         <h2 class="view-title">Letters</h2>
         <p class="view-desc">Upload, tag, and organise scanned correspondence by Provincial Directorate, District and Office.</p>
 
-        <div class="letters-grid">
+        <!-- ── Tab Navigation ── -->
+        <div class="letters-tabs">
+          <button class="letters-tab active" id="tab-upload" onclick="switchLettersTab('upload')">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+            Upload Document
+          </button>
+          <button class="letters-tab" id="tab-records" onclick="switchLettersTab('records')">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>
+            Saved Records
+            <span class="letters-tab-count" id="lettersTabCount"></span>
+          </button>
+        </div>
 
-          <!-- Upload / Metadata Card -->
+        <!-- ── Tab Panel: Upload ── -->
+        <div class="letters-tab-panel active" id="panel-upload">
           <div class="section-card letters-form-card">
-            <h3 class="card-title">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
-              Upload Document
-            </h3>
 
             <!-- File drop zone -->
             <div class="file-dropzone" id="fileDropzone" onclick="document.getElementById('letterFile').click()">
@@ -338,37 +346,26 @@
             <div class="upload-preview" id="uploadPreview" style="display:none"></div>
 
             <!-- Subject -->
-            <div class="input-group" style="margin-top:1.25rem">
+            <div class="input-group" style="margin-top:1rem">
               <label class="input-label" for="letterSubject">Subject of the Letter</label>
               <input type="text" id="letterSubject" class="input-field" placeholder="e.g. Approval of Handhole Work – Rupandehi">
             </div>
 
-            <!-- BS Date Picker (Visual Calendar) -->
-            <div class="input-group bs-date-picker-container">
-              <label class="input-label" for="bsDateDisplay">Date (BS - Bikram Sambat)</label>
-              <div class="bs-date-input-wrap">
-                <input type="text" id="bsDateDisplay" class="input-field bs-date-input" readonly placeholder="Click to choose BS Date..." onclick="toggleBSCalendar(event)">
-                <button type="button" class="bs-cal-toggle-btn" onclick="toggleBSCalendar(event)" title="Open Nepali Calendar">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
-                </button>
-              </div>
-
-              <!-- Popup Visual BS Calendar -->
-              <div class="bs-calendar-popover hidden" id="bsCalendarPopover" onclick="event.stopPropagation()">
-                <div class="bs-cal-header">
-                  <button type="button" class="bs-cal-nav" onclick="prevBSMonth()">&lsaquo;</button>
-                  <div class="bs-cal-selects">
-                    <select id="bsCalMonth" class="bs-cal-select" onchange="onBSCalMonthYearChange()"></select>
-                    <select id="bsCalYear" class="bs-cal-select" onchange="onBSCalMonthYearChange()"></select>
-                  </div>
-                  <button type="button" class="bs-cal-nav" onclick="nextBSMonth()">&rsaquo;</button>
+            <!-- BS Date Dropdowns (2070 - 2099 BS) -->
+            <div class="input-group">
+              <label class="input-label">Date (BS - Bikram Sambat)</label>
+              <div class="bs-dropdown-grid">
+                <div class="bs-drop-col">
+                  <span class="bs-drop-lbl">Year (साल)</span>
+                  <select id="bsYear" class="input-field bs-select"></select>
                 </div>
-                <div class="bs-cal-weekdays">
-                  <span>आइत</span><span>सोम</span><span>मङ्गल</span><span>बुध</span><span>बिही</span><span>शुक्र</span><span>शनि</span>
+                <div class="bs-drop-col">
+                  <span class="bs-drop-lbl">Month (महिना)</span>
+                  <select id="bsMonth" class="input-field bs-select"></select>
                 </div>
-                <div class="bs-cal-days-grid" id="bsCalDaysGrid"></div>
-                <div class="bs-cal-footer">
-                  <button type="button" class="bs-cal-today-btn" onclick="selectTodayBSDate()">आज (Today)</button>
+                <div class="bs-drop-col">
+                  <span class="bs-drop-lbl">Day (गते)</span>
+                  <select id="bsDay" class="input-field bs-select"></select>
                 </div>
               </div>
             </div>
@@ -429,31 +426,72 @@
 
             </div><!-- /cascading-dropdowns -->
 
-            <button class="btn-primary-action" onclick="saveLetterRecord()">
+            <button class="btn-primary-action" id="btnSaveLetter" onclick="saveLetterRecordAndSwitch()">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
-              Save Letter Record
+              Save &amp; View Records
             </button>
           </div>
+        </div>
 
-          <!-- Records List Card -->
+        <!-- ── Tab Panel: Saved Records ── -->
+        <div class="letters-tab-panel" id="panel-records">
           <div class="section-card letters-list-card">
-            <div class="letters-list-header">
-              <h3 class="card-title" style="margin-bottom:0">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>
-                Saved Records
-              </h3>
-              <input type="text" id="lettersSearch" class="input-field search-input" placeholder="Search by subject…" oninput="renderLettersList()">
+
+            <!-- Filter &amp; Sort Bar -->
+            <div class="letters-filter-bar">
+              <!-- Search -->
+              <div class="filter-search-wrap">
+                <svg class="filter-search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                <input type="text" id="lettersSearch" class="input-field filter-search-input" placeholder="Search subject, location…" oninput="renderLettersList()">
+              </div>
+
+              <!-- Filter by PD -->
+              <select id="filterPD" class="input-field filter-select" onchange="updateOfficeFilter(); renderLettersList()" title="Filter by Provincial Directorate">
+                <option value="">All Provinces</option>
+              </select>
+
+              <!-- Filter by Office -->
+              <select id="filterOffice" class="input-field filter-select" onchange="renderLettersList()" title="Filter by Office">
+                <option value="">All Offices</option>
+              </select>
+
+              <!-- Filter by Year -->
+              <select id="filterYear" class="input-field filter-select" onchange="renderLettersList()" title="Filter by BS Year">
+                <option value="">All Years</option>
+              </select>
+
+              <!-- Sort -->
+              <select id="lettersSort" class="input-field filter-select" onchange="renderLettersList()" title="Sort records">
+                <option value="date-desc">📅 Date: Newest First</option>
+                <option value="date-asc">📅 Date: Oldest First</option>
+                <option value="saved-desc">🕐 Recently Added</option>
+                <option value="subject-asc">🔤 Subject A–Z</option>
+                <option value="subject-desc">🔤 Subject Z–A</option>
+                <option value="office-asc">🏢 Office A–Z</option>
+                <option value="pd-asc">📍 Province A–Z</option>
+                <option value="hasphoto">📎 With Photo First</option>
+              </select>
+
+              <!-- Clear filters button -->
+              <button class="filter-clear-btn" onclick="clearLettersFilters()" title="Clear all filters">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                Clear
+              </button>
             </div>
+
+            <!-- Records count badge -->
+            <div class="letters-count-row" id="lettersCountRow"></div>
+
+            <!-- Records list -->
             <div id="lettersList" class="letters-list">
-              <!-- Populated by JS -->
               <div class="letters-empty-state">
                 <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
-                <p>No letters saved yet. Upload and save a record above.</p>
+                <p>No letters saved yet. Go to Upload Document tab to add one.</p>
               </div>
             </div>
           </div>
+        </div>
 
-        </div><!-- /letters-grid -->
       </section>
 
     </main>
