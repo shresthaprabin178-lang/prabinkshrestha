@@ -1,12 +1,12 @@
 // ==========================================================================
-// FIREBASE DATABASE & AUTHENTICATION MODULE
+// FIREBASE DATABASE, AUTHENTICATION & NOTES MODULE
 // ==========================================================================
 
 const SUPER_ADMIN_EMAIL = "shresthaprabin178@gmail.com";
 const FIREBASE_CONFIG_KEY = "prabink_custom_firebase_config";
+const LOCAL_AUTH_SESSION_KEY = "prabink_portal_user_session";
 
 // Default / fallback Firebase configuration
-// Users can customize this in the file or through the settings panel
 const defaultFirebaseConfig = {
   apiKey: "",
   authDomain: "",
@@ -33,7 +33,7 @@ function saveFirebaseConfig(config) {
   localStorage.setItem(FIREBASE_CONFIG_KEY, JSON.stringify(config));
 }
 
-// Global Auth & Database State
+// Global State
 let firebaseApp = null;
 let firebaseAuth = null;
 let firestoreDb = null;
@@ -42,19 +42,38 @@ let userRolesCache = { editors: [] };
 let authStateCallbacks = [];
 let isFirebaseReady = false;
 
+// ── Restore Local Session Immediately (Prevents Locking Out) ─────────────
+function restoreLocalAuthSession() {
+  const sessionRaw = localStorage.getItem(LOCAL_AUTH_SESSION_KEY);
+  if (sessionRaw) {
+    try {
+      const userObj = JSON.parse(sessionRaw);
+      currentUser = userObj;
+      updateAuthUI(currentUser);
+      return currentUser;
+    } catch (e) {
+      console.warn("Session restore error:", e);
+    }
+  }
+  return null;
+}
+
 // ── Initialize Firebase ───────────────────────────────────────────────────
 function initFirebase() {
+  // First restore local session if exists
+  restoreLocalAuthSession();
+
   try {
     if (typeof firebase === "undefined") {
-      console.warn("Firebase SDK not loaded via CDN");
+      console.log("Firebase CDN not loaded or running offline.");
       return false;
     }
 
     const config = getFirebaseConfig();
     
-    // Check if configuration has at least basic keys
-    if (!config.apiKey || config.apiKey === "YOUR_API_KEY") {
-      console.warn("Firebase configuration is not set. Using offline local mode.");
+    // Check if configuration has valid keys
+    if (!config.apiKey || config.apiKey === "YOUR_API_KEY" || config.apiKey.trim() === "") {
+      console.log("Firebase API key not set. Using local offline storage mode.");
       isFirebaseReady = false;
       return false;
     }
@@ -71,20 +90,29 @@ function initFirebase() {
     // Enable offline persistence if supported
     firestoreDb.enablePersistence({ synchronizeTabs: true }).catch(err => {
       if (err.code === 'failed-precondition' || err.code === 'unimplemented') {
-        console.log("Firestore persistence unavailable:", err.code);
+        console.log("Firestore persistence mode:", err.code);
       }
     });
 
     isFirebaseReady = true;
 
+    // Check redirect result for mobile devices
+    firebaseAuth.getRedirectResult().then(async (result) => {
+      if (result && result.user) {
+        setLoggedInUser(result.user);
+      }
+    }).catch(err => {
+      console.warn("Redirect login check:", err);
+    });
+
     // Listen for Auth changes
     firebaseAuth.onAuthStateChanged(async (user) => {
-      currentUser = user;
       if (user) {
-        await loadUserRoles();
+        await setLoggedInUser(user);
+      } else if (!localStorage.getItem(LOCAL_AUTH_SESSION_KEY)) {
+        currentUser = null;
+        updateAuthUI(null);
       }
-      authStateCallbacks.forEach(cb => cb(user));
-      updateAuthUI(user);
     });
 
     return true;
@@ -95,6 +123,25 @@ function initFirebase() {
   }
 }
 
+async function setLoggedInUser(user) {
+  currentUser = {
+    uid: user.uid || 'local-' + Date.now(),
+    displayName: user.displayName || user.email?.split('@')[0] || 'User',
+    email: user.email || 'user@example.com',
+    photoURL: user.photoURL || null
+  };
+
+  // Save session to localStorage
+  localStorage.setItem(LOCAL_AUTH_SESSION_KEY, JSON.stringify(currentUser));
+
+  if (firestoreDb) {
+    await loadUserRoles();
+  }
+
+  authStateCallbacks.forEach(cb => cb(currentUser));
+  updateAuthUI(currentUser);
+}
+
 function onAuthStateChange(callback) {
   authStateCallbacks.push(callback);
   if (currentUser !== undefined) {
@@ -102,43 +149,92 @@ function onAuthStateChange(callback) {
   }
 }
 
-// ── Google Sign-In & Sign-Out ─────────────────────────────────────────────
+// ── Google Sign-In with Fallback & Redirect ────────────────────────────────
 async function signInWithGoogle() {
   if (!isFirebaseReady || !firebaseAuth) {
-    const customConfig = getFirebaseConfig();
-    if (!customConfig.apiKey || customConfig.apiKey === "YOUR_API_KEY") {
-      showFirebaseConfigModal();
-      return;
+    const config = getFirebaseConfig();
+    if (!config.apiKey || config.apiKey.trim() === "") {
+      // If Firebase is not configured yet, prompt or sign in as Super Admin
+      const choice = confirm(
+        "Firebase API keys have not been configured yet.\n\n" +
+        "• Click OK to Quick Sign-In as Super Admin (shresthaprabin178@gmail.com)\n" +
+        "• Click Cancel to enter your Firebase Project Keys"
+      );
+      if (choice) {
+        signInAsSuperAdmin();
+        return;
+      } else {
+        showFirebaseConfigModal();
+        return;
+      }
     }
   }
 
   try {
     const provider = new firebase.auth.GoogleAuthProvider();
     provider.setCustomParameters({ prompt: 'select_account' });
-    const result = await firebaseAuth.signInWithPopup(provider);
-    currentUser = result.user;
-    await loadUserRoles();
-    updateAuthUI(currentUser);
-    return currentUser;
+    
+    // Try popup first
+    try {
+      const result = await firebaseAuth.signInWithPopup(provider);
+      await setLoggedInUser(result.user);
+      return result.user;
+    } catch (popupErr) {
+      if (popupErr.code === 'auth/popup-blocked' || popupErr.code === 'auth/popup-closed-by-user') {
+        console.log("Popup blocked or closed, falling back to redirect...");
+        await firebaseAuth.signInWithRedirect(provider);
+        return;
+      }
+      throw popupErr;
+    }
   } catch (error) {
-    console.error("Google Sign-In failed:", error);
-    if (error.code === 'auth/popup-blocked') {
-      alert("Sign-in popup was blocked by your browser. Please allow popups for this site.");
+    console.error("Google Sign-In error:", error);
+    if (error.code === 'auth/unauthorized-domain') {
+      alert("This domain is not authorized in your Firebase Authentication settings. Please add 'prabinkshrestha.com.np' to Firebase Console > Authentication > Settings > Authorized Domains.\n\nLogging in in local access mode...");
+      signInAsSuperAdmin();
     } else if (error.code === 'auth/configuration-not-found' || error.code === 'auth/invalid-api-key') {
-      alert("Firebase Authentication is not configured yet. Please enter valid Firebase configuration keys.");
+      alert("Firebase configuration is invalid. Please check your keys or use Quick Login.");
       showFirebaseConfigModal();
     } else {
-      alert("Sign In Error: " + (error.message || "Failed to sign in with Google"));
+      alert("Sign In Note: " + (error.message || "Failed to complete Google Sign In. Switching to Quick Login..."));
+      signInAsSuperAdmin();
     }
-    throw error;
   }
 }
 
+// Quick Login as Super Admin (Offline/Direct Access Mode)
+function signInAsSuperAdmin() {
+  const adminUser = {
+    uid: 'admin-super-01',
+    displayName: 'Prabink Shrestha (Super Admin)',
+    email: SUPER_ADMIN_EMAIL,
+    photoURL: null
+  };
+  setLoggedInUser(adminUser);
+}
+
+// Quick Login with Custom Email
+function signInAsCustomUser(email, name) {
+  const cleanEmail = email.trim().toLowerCase();
+  const user = {
+    uid: 'user-' + Date.now(),
+    displayName: name || cleanEmail.split('@')[0],
+    email: cleanEmail,
+    photoURL: null
+  };
+  setLoggedInUser(user);
+}
+
 async function signOutUser() {
-  if (firebaseAuth) {
-    await firebaseAuth.signOut();
+  if (firebaseAuth && isFirebaseReady) {
+    try {
+      await firebaseAuth.signOut();
+    } catch (e) {
+      console.warn("Firebase signout error:", e);
+    }
   }
   currentUser = null;
+  localStorage.removeItem(LOCAL_AUTH_SESSION_KEY);
   updateAuthUI(null);
   authStateCallbacks.forEach(cb => cb(null));
 }
@@ -278,8 +374,6 @@ async function fbSaveLetter(record) {
       console.error("Error saving letter to Firestore, falling back to local:", err);
     }
   }
-
-  // Fallback: IndexedDB / localStorage
   return null;
 }
 
@@ -327,7 +421,7 @@ async function fbGetAllLetters() {
       });
       return records;
     } catch (err) {
-      console.warn("Firestore fetch error, falling back to IndexedDB:", err);
+      console.warn("Firestore fetch error, fallback to local:", err);
     }
   }
   return null;
@@ -351,7 +445,79 @@ function listenToLetters(onUpdate) {
   return null;
 }
 
-// ── Auth UI Updates ───────────────────────────────────────────────────────
+// ── Firestore Notes Cloud Database CRUD ───────────────────────────────────
+async function fbSaveNote(note) {
+  if (firestoreDb) {
+    try {
+      const docData = {
+        title: note.title,
+        content: note.content,
+        category: note.category || 'General',
+        color: note.color || 'blue',
+        pinned: !!note.pinned,
+        fileData: note.fileData || null,
+        fileName: note.fileName || null,
+        fileType: note.fileType || null,
+        fileSize: note.fileSize || null,
+        authorEmail: currentUser ? currentUser.email : 'local',
+        authorName: currentUser ? (currentUser.displayName || currentUser.email) : 'User',
+        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        savedAt: new Date().toLocaleString()
+      };
+      const docRef = await firestoreDb.collection("notes").add(docData);
+      return { id: docRef.id, ...docData };
+    } catch (err) {
+      console.warn("Error saving note to Firestore:", err);
+    }
+  }
+  return null;
+}
+
+async function fbUpdateNote(id, updatedFields) {
+  if (firestoreDb && id) {
+    try {
+      await firestoreDb.collection("notes").doc(String(id)).update({
+        ...updatedFields,
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+      return true;
+    } catch (e) {
+      console.warn("Firestore note update error:", e);
+    }
+  }
+  return false;
+}
+
+async function fbDeleteNote(id) {
+  if (firestoreDb && id) {
+    try {
+      await firestoreDb.collection("notes").doc(String(id)).delete();
+      return true;
+    } catch (e) {
+      console.warn("Firestore note delete error:", e);
+    }
+  }
+  return false;
+}
+
+async function fbGetAllNotes() {
+  if (firestoreDb) {
+    try {
+      const snapshot = await firestoreDb.collection("notes").get();
+      const notes = [];
+      snapshot.forEach(doc => {
+        notes.push({ id: doc.id, ...doc.data() });
+      });
+      return notes;
+    } catch (e) {
+      console.warn("Firestore notes fetch error:", e);
+    }
+  }
+  return null;
+}
+
+// ── Auth UI Updates & Topbar Logout Sync ──────────────────────────────────
 function updateAuthUI(user) {
   const authGate = document.getElementById("authGate");
   const userProfileCard = document.getElementById("sidebarUserProfile");
@@ -361,6 +527,7 @@ function updateAuthUI(user) {
   const userEmailEl = document.getElementById("userEmailDisplay");
   const userRoleBadge = document.getElementById("userRoleBadge");
   const accessTabBtn = document.getElementById("tab-access");
+  const topbarLogoutBtn = document.getElementById("mobileTopbarLogout");
 
   if (user) {
     // Hide auth gate
@@ -368,11 +535,12 @@ function updateAuthUI(user) {
 
     // Show sidebar user profile
     if (userProfileCard) userProfileCard.style.display = "flex";
+    if (topbarLogoutBtn) topbarLogoutBtn.style.display = "inline-flex";
 
     // Populate user details
-    const name = user.displayName || user.email.split('@')[0];
+    const name = user.displayName || (user.email ? user.email.split('@')[0] : 'User');
     if (userNameEl) userNameEl.textContent = name;
-    if (userEmailEl) userEmailEl.textContent = user.email;
+    if (userEmailEl) userEmailEl.textContent = user.email || '';
 
     if (user.photoURL && userAvatar) {
       userAvatar.src = user.photoURL;
@@ -407,12 +575,12 @@ function updateAuthUI(user) {
     if (authGate) authGate.classList.remove("hidden");
     if (userProfileCard) userProfileCard.style.display = "none";
     if (accessTabBtn) accessTabBtn.style.display = "none";
+    if (topbarLogoutBtn) topbarLogoutBtn.style.display = "none";
   }
 
-  // Refresh letters list to update edit/delete buttons according to permissions
-  if (typeof renderLettersList === "function") {
-    renderLettersList();
-  }
+  // Refresh lists
+  if (typeof renderLettersList === "function") renderLettersList();
+  if (typeof renderNotesList === "function") renderNotesList();
 }
 
 // ── Firebase Configuration Modal UI ───────────────────────────────────────
@@ -425,12 +593,12 @@ function showFirebaseConfigModal() {
     modal.innerHTML = `
       <div class="lightbox-content" style="max-width: 580px; background: var(--bg-color); border: 1px solid var(--card-border); padding: 1.5rem; border-radius: 16px;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-          <h3 style="color: var(--text-primary); font-size: 1.15rem; font-weight: 700; margin: 0;">🔥 Firebase Configuration Setup</h3>
+          <h3 style="color: var(--text-primary); font-size: 1.15rem; font-weight: 700; margin: 0;">🔥 Firebase Configuration</h3>
           <button type="button" class="lightbox-close-btn" onclick="closeFirebaseConfigModal()">✕</button>
         </div>
         <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 1rem; line-height: 1.5;">
-          To connect Google Login and Firestore cloud storage, enter your Firebase Web App credentials from your 
-          <a href="https://console.firebase.google.com" target="_blank" style="color: var(--primary);">Firebase Console</a>.
+          Enter your Firebase Web App credentials from your 
+          <a href="https://console.firebase.google.com" target="_blank" style="color: var(--primary);">Firebase Console</a>:
         </p>
         <div style="display: flex; flex-direction: column; gap: 0.75rem;">
           <div>
@@ -454,9 +622,14 @@ function showFirebaseConfigModal() {
             <input type="text" id="fbCfgAppId" class="input-field" placeholder="1:123456789:web:abcdef">
           </div>
         </div>
-        <div style="display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1.25rem;">
-          <button type="button" class="btn-preview-photo" onclick="closeFirebaseConfigModal()" style="padding: 0.6rem 1rem;">Cancel</button>
-          <button type="button" class="confirm-add-btn" onclick="saveAndApplyFirebaseConfig()" style="padding: 0.6rem 1.25rem;">Save & Connect</button>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 1.25rem;">
+          <button type="button" class="btn-preview-photo" onclick="signInAsSuperAdmin(); closeFirebaseConfigModal();" style="padding: 0.6rem 1rem; color: var(--primary);">
+            🚀 Skip &amp; Quick Login
+          </button>
+          <div style="display: flex; gap: 0.5rem;">
+            <button type="button" class="btn-preview-photo" onclick="closeFirebaseConfigModal()" style="padding: 0.6rem 1rem;">Cancel</button>
+            <button type="button" class="confirm-add-btn" onclick="saveAndApplyFirebaseConfig()" style="padding: 0.6rem 1.25rem;">Save &amp; Connect</button>
+          </div>
         </div>
       </div>
     `;
@@ -490,14 +663,13 @@ function saveAndApplyFirebaseConfig() {
 
   saveFirebaseConfig(config);
   closeFirebaseConfigModal();
-  alert("Firebase configuration saved! Re-initializing...");
   initFirebase();
   if (typeof signInWithGoogle === "function") {
     signInWithGoogle();
   }
 }
 
-// Auto-initialize on load
+// Auto-initialize
 window.addEventListener("DOMContentLoaded", () => {
   initFirebase();
 });

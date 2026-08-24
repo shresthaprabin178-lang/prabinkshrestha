@@ -11,6 +11,7 @@ const VIEW_LABELS = {
   'steel-calc': 'Steel Section',
   'civil-est':  'Civil Estimator',
   letters:    'Letters',
+  notes:      'Personal Notes',
 };
 
 // ==========================================================================

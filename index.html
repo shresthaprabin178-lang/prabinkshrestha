@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Prabink Shrestha | Civil Engineer & Tech Developer</title>
-  <meta name="description" content="Personal portfolio and engineering tools hub of Prabink Shrestha. Featuring Steel Section calculators, Civil Estimators, and structural tools.">
+  <meta name="description" content="Personal portfolio and engineering tools hub of Prabink Shrestha. Featuring Steel Section calculators, Civil Estimators, Letters repository, and Personal Notes.">
   <!-- Theme is applied before render to prevent flash -->
   <script>
     (function() {
@@ -36,13 +36,13 @@
         <div class="auth-logo-icon">PS</div>
         <div class="auth-brand-text">
           <h2>PRABINK SHRESTHA</h2>
-          <span>Civil Engineering &amp; Letters Repository</span>
+          <span>Engineering Portal &amp; Correspondence</span>
         </div>
       </div>
 
       <div class="auth-body">
-        <h3>Secure Portal Sign In</h3>
-        <p>To access engineering utilities and correspondence archives, please sign in with your Google account.</p>
+        <h3>Portal Access</h3>
+        <p>Please sign in with your Google account to access tools, correspondence archives, and notes.</p>
 
         <button type="button" class="btn-google-login" onclick="signInWithGoogle()">
           <svg width="20" height="20" viewBox="0 0 24 24">
@@ -53,6 +53,13 @@
           </svg>
           <span>Continue with Google</span>
         </button>
+
+        <!-- Quick Access Super Admin Option -->
+        <div style="width: 100%; margin-top: 0.85rem;">
+          <button type="button" class="btn-quick-admin" onclick="signInAsSuperAdmin()">
+            👑 Quick Sign-In as Super Admin (shresthaprabin178@gmail.com)
+          </button>
+        </div>
 
         <div class="auth-security-notice">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
@@ -152,6 +159,20 @@
             </button>
           </li>
 
+          <!-- Notes (Personal Notes & File Uploading) -->
+          <li class="nav-item" id="nav-notes">
+            <button onclick="switchView('notes')">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                <polyline points="14 2 14 8 20 8"></polyline>
+                <line x1="16" y1="13" x2="8" y2="13"></line>
+                <line x1="16" y1="17" x2="8" y2="17"></line>
+                <polyline points="10 9 9 9 8 9"></polyline>
+              </svg>
+              <span class="nav-label">Notes</span>
+            </button>
+          </li>
+
         </ul>
       </nav>
 
@@ -171,9 +192,9 @@
               <span class="role-badge" id="userRoleBadge">Viewer</span>
             </div>
           </div>
-          <button type="button" class="btn-signout" onclick="signOutUser()" title="Sign Out">
+          <button type="button" class="btn-signout" onclick="signOutUser()" title="Logout / Sign Out">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
-            <span>Sign Out</span>
+            <span>Logout</span>
           </button>
         </div>
 
@@ -202,7 +223,7 @@
         </div>
 
         <div class="build-timestamp">
-          Last Pushed: <span>2026-08-24 12:45:00 NPT</span>
+          Last Pushed: <span>2026-08-24 12:50:00 NPT</span>
         </div>
       </div>
     </aside>
@@ -215,9 +236,15 @@
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
       </button>
       <span class="mobile-page-title" id="mobilePageTitle">Profile</span>
-      <button class="theme-icon-btn" onclick="toggleTheme()" title="Toggle theme">
-        <svg id="mobileThemeIcon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
-      </button>
+      
+      <div style="display:flex; align-items:center; gap:0.4rem;">
+        <button type="button" class="topbar-logout-btn" id="mobileTopbarLogout" onclick="signOutUser()" title="Logout" style="display:none;">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+        </button>
+        <button class="theme-icon-btn" onclick="toggleTheme()" title="Toggle theme">
+          <svg id="mobileThemeIcon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+        </button>
+      </div>
     </div>
 
     <!-- Mobile overlay backdrop -->
@@ -584,6 +611,119 @@
 
       </section>
 
+      <!-- ── 6. NOTES (Personal Notes & File Uploading) ─────── -->
+      <section id="view-notes" class="view-panel">
+        <div class="notes-header-row">
+          <div>
+            <h2 class="view-title">Personal Notes &amp; Files</h2>
+            <p class="view-desc">Write field notes, organize calculation logs, and attach images or documents securely.</p>
+          </div>
+          <button type="button" class="btn-create-note" onclick="openNewNoteModal()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+            <span>+ Create Note</span>
+          </button>
+        </div>
+
+        <!-- Notes Search & Category Chips -->
+        <div class="notes-controls-wrap">
+          <div class="filter-search-wrap" style="flex:1; min-width:240px;">
+            <svg class="filter-search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+            <input type="text" id="notesSearchInput" class="input-field filter-search-input" placeholder="Search notes, files, tags…" oninput="renderNotesList()">
+          </div>
+
+          <div class="notes-category-chips">
+            <button type="button" class="note-filter-chip active" data-category="All" onclick="filterNotesByCategory('All')">All</button>
+            <button type="button" class="note-filter-chip" data-category="General" onclick="filterNotesByCategory('General')">General</button>
+            <button type="button" class="note-filter-chip" data-category="Site Inspection" onclick="filterNotesByCategory('Site Inspection')">Site Inspection</button>
+            <button type="button" class="note-filter-chip" data-category="Structural" onclick="filterNotesByCategory('Structural')">Structural</button>
+            <button type="button" class="note-filter-chip" data-category="Civil Estimation" onclick="filterNotesByCategory('Civil Estimation')">Civil Estimation</button>
+            <button type="button" class="note-filter-chip" data-category="Meeting" onclick="filterNotesByCategory('Meeting')">Meeting</button>
+            <button type="button" class="note-filter-chip" data-category="Personal" onclick="filterNotesByCategory('Personal')">Personal</button>
+          </div>
+        </div>
+
+        <div class="notes-status-row">
+          <span id="notesCountLabel">0 notes</span>
+        </div>
+
+        <!-- Notes Grid -->
+        <div id="notesGrid" class="notes-grid">
+          <!-- Populated by notes.js -->
+        </div>
+
+        <!-- Note Editor Modal -->
+        <div class="lightbox-overlay" id="noteEditorModal">
+          <div class="lightbox-content note-modal-card">
+            <div class="lightbox-header" style="background:none; border:none; padding:0 0 1rem 0;">
+              <h3 id="noteModalTitle" style="color:var(--text-primary); font-size:1.2rem; font-weight:700; margin:0;">📝 New Note</h3>
+              <button type="button" class="lightbox-close-btn" onclick="closeNoteModal()">✕</button>
+            </div>
+
+            <div class="note-modal-body">
+              <div class="input-group">
+                <label class="input-label">Title</label>
+                <input type="text" id="noteTitleInput" class="input-field" placeholder="Note heading / subject…">
+              </div>
+
+              <div style="display:grid; grid-template-columns: 1fr 1fr auto; gap:0.75rem; align-items:center;">
+                <div class="input-group">
+                  <label class="input-label">Category</label>
+                  <select id="noteCategorySelect" class="input-field">
+                    <option value="General">General</option>
+                    <option value="Site Inspection">Site Inspection</option>
+                    <option value="Structural">Structural</option>
+                    <option value="Civil Estimation">Civil Estimation</option>
+                    <option value="Meeting">Meeting</option>
+                    <option value="Personal">Personal</option>
+                  </select>
+                </div>
+
+                <div class="input-group">
+                  <label class="input-label">Color Theme</label>
+                  <div class="note-color-picker">
+                    <input type="hidden" id="noteColorValue" value="blue">
+                    <span class="note-color-dot dot-blue selected" data-color="blue" onclick="selectNoteColor('blue')"></span>
+                    <span class="note-color-dot dot-emerald" data-color="emerald" onclick="selectNoteColor('emerald')"></span>
+                    <span class="note-color-dot dot-amber" data-color="amber" onclick="selectNoteColor('amber')"></span>
+                    <span class="note-color-dot dot-rose" data-color="rose" onclick="selectNoteColor('rose')"></span>
+                    <span class="note-color-dot dot-purple" data-color="purple" onclick="selectNoteColor('purple')"></span>
+                  </div>
+                </div>
+
+                <div class="input-group" style="padding-top:1.25rem;">
+                  <label class="checkbox-label" style="display:flex; align-items:center; gap:0.4rem; cursor:pointer; font-size:0.82rem; color:var(--text-secondary);">
+                    <input type="checkbox" id="notePinnedCheck" style="accent-color:var(--primary);">
+                    <span>📌 Pin to top</span>
+                  </label>
+                </div>
+              </div>
+
+              <div class="input-group">
+                <label class="input-label">Note Content</label>
+                <textarea id="noteContentInput" class="input-field note-textarea" rows="6" placeholder="Write your notes, observations, material specs or measurements here…"></textarea>
+              </div>
+
+              <!-- Attachment Upload -->
+              <div class="input-group">
+                <label class="input-label">Attachment <span>(Image, PDF, Doc up to 500KB)</span></label>
+                <div class="note-upload-box" onclick="document.getElementById('noteFileInput').click()">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path></svg>
+                  <span>Click to attach file or photo</span>
+                  <input type="file" id="noteFileInput" style="display:none" onchange="handleNoteFileSelect(this)">
+                </div>
+                <div id="noteAttachmentPreview" style="display:none; margin-top:0.6rem;"></div>
+              </div>
+            </div>
+
+            <div style="display:flex; justify-content:flex-end; gap:0.6rem; margin-top:1.25rem; border-top:1px solid var(--card-border); padding-top:1rem;">
+              <button type="button" class="btn-preview-photo" onclick="closeNoteModal()" style="padding:0.65rem 1.1rem;">Cancel</button>
+              <button type="button" class="confirm-add-btn" onclick="saveNoteRecord()" style="padding:0.65rem 1.4rem;">Save Note</button>
+            </div>
+          </div>
+        </div>
+
+      </section>
+
     </main>
   </div>
 
@@ -591,5 +731,6 @@
   <script src="js/main.js"></script>
   <script src="js/steel-calc.js"></script>
   <script src="js/letters.js"></script>
+  <script src="js/notes.js"></script>
 </body>
 </html>
