@@ -154,19 +154,15 @@ async function signInWithGoogle() {
   if (!isFirebaseReady || !firebaseAuth) {
     const config = getFirebaseConfig();
     if (!config.apiKey || config.apiKey.trim() === "") {
-      // If Firebase is not configured yet, prompt or sign in as Super Admin
-      const choice = confirm(
-        "Firebase API keys have not been configured yet.\n\n" +
-        "• Click OK to Quick Sign-In as Super Admin (shresthaprabin178@gmail.com)\n" +
-        "• Click Cancel to enter your Firebase Project Keys"
-      );
-      if (choice) {
-        signInAsSuperAdmin();
-        return;
-      } else {
-        showFirebaseConfigModal();
-        return;
-      }
+      // Firebase not configured yet — open config modal directly
+      showFirebaseConfigModal();
+      return;
+    }
+    // Config exists but Firebase failed to init — try reinitialising
+    const reinited = initFirebase();
+    if (!reinited) {
+      showFirebaseConfigModal();
+      return;
     }
   }
 
@@ -190,13 +186,12 @@ async function signInWithGoogle() {
   } catch (error) {
     console.error("Google Sign-In error:", error);
     if (error.code === 'auth/unauthorized-domain') {
-      alert("This domain is not authorized in your Firebase Authentication settings. Please add 'prabinkshrestha.com.np' to Firebase Console > Authentication > Settings > Authorized Domains.\n\nLogging in in local access mode...");
+      alert("This domain is not authorized in your Firebase Authentication settings.\n\nPlease add 'prabinkshrestha.com.np' to Firebase Console › Authentication › Settings › Authorized Domains.\n\nLogging in via offline access mode...");
       signInAsSuperAdmin();
     } else if (error.code === 'auth/configuration-not-found' || error.code === 'auth/invalid-api-key') {
-      alert("Firebase configuration is invalid. Please check your keys or use Quick Login.");
       showFirebaseConfigModal();
     } else {
-      alert("Sign In Note: " + (error.message || "Failed to complete Google Sign In. Switching to Quick Login..."));
+      alert("Google Sign-In failed: " + (error.message || "Unknown error.") + "\n\nFalling back to offline access.");
       signInAsSuperAdmin();
     }
   }
@@ -206,7 +201,7 @@ async function signInWithGoogle() {
 function signInAsSuperAdmin() {
   const adminUser = {
     uid: 'admin-super-01',
-    displayName: 'Prabink Shrestha (Super Admin)',
+    displayName: 'Prabink Shrestha',
     email: SUPER_ADMIN_EMAIL,
     photoURL: null
   };
