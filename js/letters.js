@@ -1,5 +1,5 @@
 // ==========================================================================
-// LETTERS MODULE — IndexedDB Persistent Storage & Nepali Calendar
+// LETTERS MODULE — Firebase Cloud Sync, RBAC & Nepali Calendar
 // ==========================================================================
 
 const MAX_FILE_SIZE_KB = 200;
@@ -43,7 +43,7 @@ function saveLocations(db) {
   localStorage.setItem(LOCATIONS_KEY, JSON.stringify(db));
 }
 
-// ── IndexedDB Database Storage Engine (No quota limit for photos) ─────────
+// ── IndexedDB Database Storage Engine (Offline cache) ─────────────────────
 const DB_NAME = 'LettersAppDB';
 const DB_VERSION = 1;
 const STORE_NAME = 'letters_records';
@@ -75,7 +75,9 @@ async function dbSaveRecord(record) {
   } catch (err) {
     console.warn('IndexedDB write error, fallback to localStorage', err);
     const local = loadLettersLocalStorage();
-    local.unshift(record);
+    const idx = local.findIndex(l => String(l.id) === String(record.id));
+    if (idx >= 0) local[idx] = record;
+    else local.unshift(record);
     saveLettersLocalStorage(local);
   }
 }
@@ -108,7 +110,7 @@ async function dbDeleteRecord(id) {
     });
   } catch (err) {
     console.warn('IndexedDB delete error', err);
-    const local = loadLettersLocalStorage().filter(l => l.id !== id);
+    const local = loadLettersLocalStorage().filter(l => String(l.id) !== String(id));
     saveLettersLocalStorage(local);
   }
 }
@@ -126,11 +128,26 @@ function saveLettersLocalStorage(arr) {
   }
 }
 
+// ── Unified Storage Manager (Firestore with Local Cache) ──────────────────
+async function getAllLettersCombined() {
+  if (typeof fbGetAllLetters === 'function') {
+    const fbLetters = await fbGetAllLetters();
+    if (fbLetters && fbLetters.length >= 0) {
+      // Sync into local DB for offline access
+      for (const rec of fbLetters) {
+        await dbSaveRecord(rec);
+      }
+      return fbLetters;
+    }
+  }
+  return await dbGetAllRecords();
+}
+
 // ── Nepali BS Date Dropdown Population (Years 2070 - 2099 BS) ─────────────
-function initBSDateDropdowns() {
-  const yearSel  = document.getElementById('bsYear');
-  const monthSel = document.getElementById('bsMonth');
-  const daySel   = document.getElementById('bsDay');
+function initBSDateDropdowns(prefix = 'bs') {
+  const yearSel  = document.getElementById(`${prefix}Year`);
+  const monthSel = document.getElementById(`${prefix}Month`);
+  const daySel   = document.getElementById(`${prefix}Day`);
 
   if (!yearSel || !monthSel || !daySel) return;
 
@@ -165,10 +182,10 @@ function initBSDateDropdowns() {
   }
 }
 
-function getSelectedBSDate() {
-  const year = parseInt(document.getElementById('bsYear')?.value) || 2083;
-  const month = parseInt(document.getElementById('bsMonth')?.value) || 4;
-  const day = parseInt(document.getElementById('bsDay')?.value) || 15;
+function getSelectedBSDate(prefix = 'bs') {
+  const year = parseInt(document.getElementById(`${prefix}Year`)?.value) || 2083;
+  const month = parseInt(document.getElementById(`${prefix}Month`)?.value) || 4;
+  const day = parseInt(document.getElementById(`${prefix}Day`)?.value) || 15;
 
   const monthName = BS_MONTHS[month - 1] || '';
   const dateDisplay = `${day} ${monthName} ${year} BS`;
@@ -181,11 +198,13 @@ function getSelectedBSDate() {
 let selectedFile = null;
 let selectedFileData = null;
 
+let editSelectedFile = null;
+let editSelectedFileData = null;
+
 function handleFileSelect(input) {
   const file = input.files[0];
   if (!file) return;
 
-  // Enforce 200KB limit
   if (file.size > MAX_FILE_SIZE_BYTES) {
     alert(`File size too large. (Maximum allowed size is ${MAX_FILE_SIZE_KB}KB)`);
     input.value = '';
@@ -281,21 +300,33 @@ function initLetters() {
   populateFilterPD();
   initBSDateDropdowns();
   renderLettersList();
+
+  // Listen to Firestore real-time updates if available
+  if (typeof listenToLetters === 'function') {
+    listenToLetters((updatedList) => {
+      renderLettersList();
+    });
+  }
 }
 
 // ── Tab Switching ─────────────────────────────────────────────────────────
 function switchLettersTab(tab) {
-  document.getElementById('tab-upload').classList.toggle('active', tab === 'upload');
-  document.getElementById('tab-records').classList.toggle('active', tab === 'records');
-  document.getElementById('panel-upload').classList.toggle('active', tab === 'upload');
-  document.getElementById('panel-records').classList.toggle('active', tab === 'records');
+  document.getElementById('tab-upload')?.classList.toggle('active', tab === 'upload');
+  document.getElementById('tab-records')?.classList.toggle('active', tab === 'records');
+  document.getElementById('tab-access')?.classList.toggle('active', tab === 'access');
+
+  document.getElementById('panel-upload')?.classList.toggle('active', tab === 'upload');
+  document.getElementById('panel-records')?.classList.toggle('active', tab === 'records');
+  document.getElementById('panel-access')?.classList.toggle('active', tab === 'access');
+
   if (tab === 'records') renderLettersList();
+  if (tab === 'access') renderAccessManagementList();
 }
 
 // ── Cascading Dropdowns Logic ──────────────────────────────────────────────
-function populatePDDropdown() {
+function populatePDDropdown(selId = 'selPD') {
   const db  = loadLocations();
-  const sel = document.getElementById('selPD');
+  const sel = document.getElementById(selId);
   if (!sel) return;
 
   const current = sel.value;
@@ -309,11 +340,13 @@ function populatePDDropdown() {
   });
 }
 
-function onPDChange() {
+function onPDChange(prefix = '') {
   const db       = loadLocations();
-  const pd       = document.getElementById('selPD').value;
-  const distSel  = document.getElementById('selDistrict');
-  const offSel   = document.getElementById('selOffice');
+  const pd       = document.getElementById(`${prefix}selPD`)?.value;
+  const distSel  = document.getElementById(`${prefix}selDistrict`);
+  const offSel   = document.getElementById(`${prefix}selOffice`);
+
+  if (!distSel || !offSel) return;
 
   distSel.innerHTML = '<option value="">— Select —</option>';
   offSel.innerHTML  = '<option value="">— Select District first —</option>';
@@ -333,11 +366,13 @@ function onPDChange() {
   });
 }
 
-function onDistrictChange() {
+function onDistrictChange(prefix = '') {
   const db      = loadLocations();
-  const pd      = document.getElementById('selPD').value;
-  const dist    = document.getElementById('selDistrict').value;
-  const offSel  = document.getElementById('selOffice');
+  const pd      = document.getElementById(`${prefix}selPD`)?.value;
+  const dist    = document.getElementById(`${prefix}selDistrict`)?.value;
+  const offSel  = document.getElementById(`${prefix}selOffice`);
+
+  if (!offSel) return;
 
   offSel.innerHTML = '<option value="">— Select —</option>';
   offSel.disabled  = true;
@@ -414,14 +449,25 @@ document.addEventListener('keydown', e => {
 // ── Save Letter Record ─────────────────────────────────────────────────────
 async function saveLetterRecord() {
   try {
+    const user = typeof getCurrentUser === 'function' ? getCurrentUser() : null;
     const subject  = document.getElementById('letterSubject')?.value.trim();
     const bsDate   = getSelectedBSDate();
     const pd       = document.getElementById('selPD')?.value;
     const district = document.getElementById('selDistrict')?.value;
     const office   = document.getElementById('selOffice')?.value;
+    const userRemarks = document.getElementById('letterRemarks')?.value.trim();
 
     if (!subject) { highlight('letterSubject'); return false; }
     if (!pd)      { highlight('selPD');         return false; }
+
+    const uploaderName = user ? (user.displayName || user.email.split('@')[0]) : "Guest User";
+    const uploaderEmail = user ? user.email : "Unregistered";
+    const uploaderPhoto = user ? user.photoURL : null;
+
+    // Compose remarks with uploader details
+    const finalRemarks = userRemarks 
+      ? `${userRemarks} • (Uploaded by: ${uploaderName})`
+      : `Uploaded by ${uploaderName} (${uploaderEmail})`;
 
     const record = {
       id:          Date.now(),
@@ -436,14 +482,28 @@ async function saveLetterRecord() {
       office:      office   || '—',
       fileName:    selectedFile ? selectedFile.name : null,
       fileData:    selectedFileData || null,
+      uploaderName,
+      uploaderEmail,
+      uploaderPhoto,
+      remarks:     finalRemarks,
       savedAt:     new Date().toLocaleString(),
     };
 
-    // Save to IndexedDB
+    // Save to Firestore first if online/configured
+    if (typeof fbSaveLetter === 'function') {
+      const fbSaved = await fbSaveLetter(record);
+      if (fbSaved && fbSaved.id) {
+        record.id = fbSaved.id;
+      }
+    }
+
+    // Save to Local IndexedDB Cache
     await dbSaveRecord(record);
 
     // Reset Form
     document.getElementById('letterSubject').value = '';
+    const remField = document.getElementById('letterRemarks');
+    if (remField) remField.value = '';
     initBSDateDropdowns();
     document.getElementById('selPD').value         = '';
     onPDChange();
@@ -483,7 +543,7 @@ function highlight(id) {
 
 // ── Filter Population ─────────────────────────────────────────────────────
 async function populateFilterPD() {
-  const all = await dbGetAllRecords();
+  const all = await getAllLettersCombined();
   const pdSel = document.getElementById('filterPD');
   if (!pdSel) return;
   const pds = [...new Set(all.map(l => l.pd).filter(Boolean))].sort();
@@ -498,7 +558,7 @@ async function populateFilterPD() {
 }
 
 async function updateOfficeFilter() {
-  const all = await dbGetAllRecords();
+  const all = await getAllLettersCombined();
   const selectedPD = document.getElementById('filterPD')?.value || '';
   const offSel = document.getElementById('filterOffice');
   if (!offSel) return;
@@ -536,7 +596,6 @@ function clearLettersFilters() {
     const el = document.getElementById(id);
     if (el) el.value = '';
   });
-  // reset sort to default
   const sortEl = document.getElementById('lettersSort');
   if (sortEl) sortEl.value = 'date-desc';
   updateOfficeFilter();
@@ -554,7 +613,11 @@ async function renderLettersList() {
   const filterOff = document.getElementById('filterOffice')?.value || '';
   const filterYear = document.getElementById('filterYear')?.value || '';
 
-  let letters = await dbGetAllRecords();
+  const user = typeof getCurrentUser === 'function' ? getCurrentUser() : null;
+  const isSuper = typeof isCurrentUserSuperAdmin === 'function' ? isCurrentUserSuperAdmin() : false;
+  const canEdit = typeof canUserEditLetters === 'function' ? canUserEditLetters(user) : false;
+
+  let letters = await getAllLettersCombined();
 
   // Repopulate dynamic filters each render
   await populateFilterPD();
@@ -569,16 +632,19 @@ async function renderLettersList() {
   // Search Filter
   if (query) {
     letters = letters.filter(l =>
-      l.subject.toLowerCase().includes(query) ||
-      l.pd.toLowerCase().includes(query) ||
+      l.subject?.toLowerCase().includes(query) ||
+      l.pd?.toLowerCase().includes(query) ||
       (l.district && l.district.toLowerCase().includes(query)) ||
       (l.office && l.office.toLowerCase().includes(query)) ||
-      (l.dateDisplay && l.dateDisplay.toLowerCase().includes(query))
+      (l.dateDisplay && l.dateDisplay.toLowerCase().includes(query)) ||
+      (l.uploaderName && l.uploaderName.toLowerCase().includes(query)) ||
+      (l.uploaderEmail && l.uploaderEmail.toLowerCase().includes(query)) ||
+      (l.remarks && l.remarks.toLowerCase().includes(query))
     );
   }
 
   // Update tab count badge
-  const totalAll = await dbGetAllRecords();
+  const totalAll = await getAllLettersCombined();
   const countBadge = document.getElementById('lettersTabCount');
   if (countBadge) countBadge.textContent = totalAll.length ? String(totalAll.length) : '';
 
@@ -593,31 +659,34 @@ async function renderLettersList() {
 
   // Sorting Logic
   letters.sort((a, b) => {
-    if (sortMode === 'date-desc')    return (b.sortKey || b.id) - (a.sortKey || a.id);
-    if (sortMode === 'date-asc')     return (a.sortKey || a.id) - (b.sortKey || b.id);
-    if (sortMode === 'saved-desc')   return b.id - a.id;
-    if (sortMode === 'subject-asc')  return a.subject.localeCompare(b.subject);
-    if (sortMode === 'subject-desc') return b.subject.localeCompare(a.subject);
+    if (sortMode === 'date-desc')    return (b.sortKey || 0) - (a.sortKey || 0);
+    if (sortMode === 'date-asc')     return (a.sortKey || 0) - (b.sortKey || 0);
+    if (sortMode === 'saved-desc')   return String(b.id).localeCompare(String(a.id));
+    if (sortMode === 'subject-asc')  return (a.subject || '').localeCompare(b.subject || '');
+    if (sortMode === 'subject-desc') return (b.subject || '').localeCompare(a.subject || '');
     if (sortMode === 'office-asc')   return (a.office || '').localeCompare(b.office || '');
     if (sortMode === 'pd-asc')       return (a.pd || '').localeCompare(b.pd || '');
     if (sortMode === 'hasphoto')     return (b.fileData ? 1 : 0) - (a.fileData ? 1 : 0);
-    return b.id - a.id;
+    return 0;
   });
 
   if (!letters.length) {
     container.innerHTML = `
       <div class="letters-empty-state">
         <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
-        <p>${query ? 'No matching records found.' : 'No letters saved yet. Upload and save a record above.'}</p>
+        <p>${query ? 'No matching records found.' : 'No letters saved yet. Upload and save a record in the Upload Document tab.'}</p>
       </div>`;
     return;
   }
 
   container.innerHTML = letters.map(l => {
     const hasPhoto = !!l.fileData;
+    const isOwner = user && l.uploaderEmail && user.email.toLowerCase() === l.uploaderEmail.toLowerCase();
+    const canUserEditThis = isSuper || canEdit || isOwner;
+    const canUserDeleteThis = isSuper || canEdit;
 
     const thumbnailHtml = hasPhoto
-      ? `<div class="rec-thumbnail" onclick="event.stopPropagation(); viewLetterPhoto(${l.id})" title="Click to view photo">
+      ? `<div class="rec-thumbnail" onclick="event.stopPropagation(); viewLetterPhoto('${l.id}')" title="Click to view photo">
            <img src="${l.fileData}" alt="${escHtml(l.fileName || 'photo')}" loading="lazy">
            <div class="rec-thumbnail-overlay">
              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
@@ -627,31 +696,59 @@ async function renderLettersList() {
            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
          </div>`;
 
+    // Uploader identity badge
+    const uploaderHtml = l.uploaderName
+      ? `<div class="rec-uploader-tag" title="${escHtml(l.uploaderEmail || '')}">
+          ${l.uploaderPhoto ? `<img src="${l.uploaderPhoto}" class="rec-uploader-avatar" alt="Avatar">` : `<span class="rec-uploader-icon">👤</span>`}
+          <span>${escHtml(l.uploaderName)}</span>
+         </div>`
+      : '';
+
+    const remarksHtml = l.remarks
+      ? `<div class="rec-remarks-bubble" title="Remarks">
+          <span class="remarks-icon">💬</span>
+          <span class="remarks-text">${escHtml(l.remarks)}</span>
+         </div>`
+      : '';
+
     return `
     <div class="letter-record-item" id="rec-${l.id}">
       <div class="rec-main">
         ${thumbnailHtml}
         <div class="rec-info">
-          <div class="rec-subject">${escHtml(l.subject)}</div>
+          <div class="rec-subject-row">
+            <div class="rec-subject">${escHtml(l.subject)}</div>
+            ${uploaderHtml}
+          </div>
+
           <div class="rec-meta">
             <span>${escHtml(l.pd)}</span>
-            ${l.district !== '—' ? `<span>›</span><span>${escHtml(l.district)}</span>` : ''}
-            ${l.office   !== '—' ? `<span>›</span><span>${escHtml(l.office)}</span>`   : ''}
+            ${l.district && l.district !== '—' ? `<span>›</span><span>${escHtml(l.district)}</span>` : ''}
+            ${l.office && l.office !== '—' ? `<span>›</span><span>${escHtml(l.office)}</span>` : ''}
           </div>
+
           <div class="rec-date">
-            📅 ${escHtml(l.dateDisplay || '—')} &nbsp;·&nbsp; ${l.savedAt}
-            ${l.fileName ? ` &nbsp;·&nbsp; <span class="rec-file-link" onclick="event.stopPropagation(); viewLetterPhoto(${l.id})">📎 ${escHtml(l.fileName)}</span>` : ''}
+            📅 ${escHtml(l.dateDisplay || '—')} &nbsp;·&nbsp; ${l.savedAt || ''}
+            ${l.fileName ? ` &nbsp;·&nbsp; <span class="rec-file-link" onclick="event.stopPropagation(); viewLetterPhoto('${l.id}')">📎 ${escHtml(l.fileName)}</span>` : ''}
           </div>
+
+          ${remarksHtml}
         </div>
       </div>
       <div class="rec-actions">
-        ${hasPhoto ? `<button type="button" class="rec-view-btn" onclick="event.stopPropagation(); viewLetterPhoto(${l.id})" title="View full photo document">
+        ${hasPhoto ? `<button type="button" class="rec-view-btn" onclick="event.stopPropagation(); viewLetterPhoto('${l.id}')" title="View full photo document">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
           <span>View Photo</span>
         </button>` : ''}
-        <button type="button" class="rec-delete-btn" onclick="event.stopPropagation(); deleteLetterRecord(${l.id})" title="Delete record">
+        
+        ${canUserEditThis ? `<button type="button" class="rec-edit-btn" onclick="event.stopPropagation(); openEditLetterModal('${l.id}')" title="Edit Letter">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+          <span>Edit</span>
+        </button>` : ''}
+
+        ${canUserDeleteThis ? `<button type="button" class="rec-delete-btn" onclick="event.stopPropagation(); deleteLetterRecord('${l.id}')" title="Delete record">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-1 14H6L5 6"></path><path d="M10 11v6"></path><path d="M14 11v6"></path><path d="M9 6V4h6v2"></path></svg>
-        </button>
+        </button>` : ''}
       </div>
     </div>
   `;
@@ -660,15 +757,295 @@ async function renderLettersList() {
 
 // ── Delete Record ──────────────────────────────────────────────────────────
 async function deleteLetterRecord(id) {
-  if (!confirm('Are you sure you want to delete this letter record?')) return;
+  const user = typeof getCurrentUser === 'function' ? getCurrentUser() : null;
+  const isSuper = typeof isCurrentUserSuperAdmin === 'function' ? isCurrentUserSuperAdmin() : false;
+  const canEdit = typeof canUserEditLetters === 'function' ? canUserEditLetters(user) : false;
+
+  if (!isSuper && !canEdit) {
+    alert("Access Denied: Only Super Admin (shresthaprabin178@gmail.com) or authorized editors can delete letters.");
+    return;
+  }
+
+  if (!confirm('Are you sure you want to permanently delete this letter record?')) return;
+  
+  if (typeof fbDeleteLetter === 'function') {
+    try {
+      await fbDeleteLetter(id);
+    } catch (e) {
+      console.warn("Firestore delete issue, deleting locally:", e);
+    }
+  }
+
   await dbDeleteRecord(id);
   renderLettersList();
 }
 
+// ── Edit Letter Modal Logic ─────────────────────────────────────────────────
+let activeEditLetterId = null;
+
+async function openEditLetterModal(id) {
+  const letters = await getAllLettersCombined();
+  const letter = letters.find(l => String(l.id) === String(id));
+  if (!letter) {
+    alert("Letter record not found.");
+    return;
+  }
+
+  activeEditLetterId = id;
+
+  let modal = document.getElementById("editLetterModal");
+  if (!modal) {
+    modal = document.createElement("div");
+    modal.id = "editLetterModal";
+    modal.className = "lightbox-overlay";
+    document.body.appendChild(modal);
+  }
+
+  modal.innerHTML = `
+    <div class="lightbox-content edit-modal-content" style="max-width: 650px; background: var(--bg-color); border: 1px solid var(--card-border); padding: 1.5rem; border-radius: 16px;">
+      <div class="lightbox-header" style="background:none; border:none; padding:0 0 1rem 0;">
+        <h3 style="color: var(--text-primary); font-size: 1.15rem; font-weight: 700; margin: 0;">✏️ Edit Letter Record</h3>
+        <button type="button" class="lightbox-close-btn" onclick="closeEditLetterModal()">✕</button>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 0.9rem; max-height: 70vh; overflow-y: auto; padding-right: 4px;">
+        <div class="input-group">
+          <label class="input-label">Subject</label>
+          <input type="text" id="editSubject" class="input-field" value="${escHtml(letter.subject || '')}">
+        </div>
+
+        <div class="input-group">
+          <label class="input-label">Remarks</label>
+          <input type="text" id="editRemarks" class="input-field" value="${escHtml(letter.remarks || '')}" placeholder="Remarks / description">
+        </div>
+
+        <div class="input-group">
+          <label class="input-label">Date (BS)</label>
+          <div class="bs-dropdown-grid">
+            <div class="bs-drop-col">
+              <span class="bs-drop-lbl">Year</span>
+              <select id="editBsYear" class="input-field bs-select"></select>
+            </div>
+            <div class="bs-drop-col">
+              <span class="bs-drop-lbl">Month</span>
+              <select id="editBsMonth" class="input-field bs-select"></select>
+            </div>
+            <div class="bs-drop-col">
+              <span class="bs-drop-lbl">Day</span>
+              <select id="editBsDay" class="input-field bs-select"></select>
+            </div>
+          </div>
+        </div>
+
+        <div class="cascading-dropdowns">
+          <div class="input-group">
+            <label class="input-label">Provincial Directorate</label>
+            <select id="editSelPD" class="input-field" onchange="onPDChange('edit')">
+              <option value="">— Select —</option>
+            </select>
+          </div>
+          <div class="input-group">
+            <label class="input-label">District</label>
+            <select id="editSelDistrict" class="input-field" onchange="onDistrictChange('edit')">
+              <option value="">— Select —</option>
+            </select>
+          </div>
+          <div class="input-group">
+            <label class="input-label">Office</label>
+            <select id="editSelOffice" class="input-field">
+              <option value="">— Select —</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div style="display: flex; justify-content: flex-end; gap: 0.6rem; margin-top: 1.25rem; border-top: 1px solid var(--card-border); padding-top: 1rem;">
+        <button type="button" class="btn-preview-photo" onclick="closeEditLetterModal()" style="padding: 0.65rem 1.1rem;">Cancel</button>
+        <button type="button" class="confirm-add-btn" onclick="saveEditedLetter()" style="padding: 0.65rem 1.4rem;">Save Changes</button>
+      </div>
+    </div>
+  `;
+
+  initBSDateDropdowns('editBs');
+  populatePDDropdown('editSelPD');
+
+  // Pre-fill values
+  if (letter.bsYear) document.getElementById('editBsYear').value = letter.bsYear;
+  if (letter.bsMonth) document.getElementById('editBsMonth').value = letter.bsMonth;
+  if (letter.bsDay) document.getElementById('editBsDay').value = letter.bsDay;
+
+  if (letter.pd) {
+    document.getElementById('editSelPD').value = letter.pd;
+    onPDChange('edit');
+    if (letter.district) {
+      document.getElementById('editSelDistrict').value = letter.district;
+      onDistrictChange('edit');
+      if (letter.office) {
+        document.getElementById('editSelOffice').value = letter.office;
+      }
+    }
+  }
+
+  modal.classList.add("active");
+}
+
+function closeEditLetterModal() {
+  const modal = document.getElementById("editLetterModal");
+  if (modal) modal.classList.remove("active");
+  activeEditLetterId = null;
+}
+
+async function saveEditedLetter() {
+  if (!activeEditLetterId) return;
+
+  const subject = document.getElementById('editSubject')?.value.trim();
+  const remarks = document.getElementById('editRemarks')?.value.trim();
+  const bsDate = getSelectedBSDate('editBs');
+  const pd = document.getElementById('editSelPD')?.value;
+  const district = document.getElementById('editSelDistrict')?.value;
+  const office = document.getElementById('editSelOffice')?.value;
+
+  if (!subject) {
+    alert("Subject is required.");
+    return;
+  }
+
+  const updatedFields = {
+    subject,
+    remarks,
+    dateDisplay: bsDate.dateDisplay,
+    sortKey: bsDate.sortKey,
+    bsYear: bsDate.year,
+    bsMonth: bsDate.month,
+    bsDay: bsDate.day,
+    pd: pd || "—",
+    district: district || "—",
+    office: office || "—"
+  };
+
+  // Update in Firestore
+  if (typeof fbUpdateLetter === 'function') {
+    try {
+      await fbUpdateLetter(activeEditLetterId, updatedFields);
+    } catch (e) {
+      console.warn("Firestore update error, updating local cache:", e);
+    }
+  }
+
+  // Update local IndexedDB
+  const letters = await getAllLettersCombined();
+  const localRec = letters.find(l => String(l.id) === String(activeEditLetterId));
+  if (localRec) {
+    Object.assign(localRec, updatedFields);
+    await dbSaveRecord(localRec);
+  }
+
+  closeEditLetterModal();
+  renderLettersList();
+}
+
+// ── Super Admin Access Management UI ──────────────────────────────────────
+async function renderAccessManagementList() {
+  const container = document.getElementById('accessUsersList');
+  if (!container) return;
+
+  const isSuper = typeof isCurrentUserSuperAdmin === 'function' ? isCurrentUserSuperAdmin() : false;
+  if (!isSuper) {
+    container.innerHTML = `
+      <div class="letters-empty-state">
+        <p>Access Denied: Only Super Admin (shresthaprabin178@gmail.com) can manage permissions.</p>
+      </div>`;
+    return;
+  }
+
+  if (typeof loadUserRoles === 'function') {
+    await loadUserRoles();
+  }
+
+  const editors = (typeof userRolesCache !== 'undefined' && userRolesCache.editors) ? userRolesCache.editors : [];
+
+  let html = `
+    <div class="access-admin-card">
+      <div class="access-superadmin-box">
+        <span class="role-badge role-superadmin">Super Admin</span>
+        <div style="font-weight:700; color:var(--text-primary); font-size:1rem; margin-top:0.35rem;">
+          shresthaprabin178@gmail.com
+        </div>
+        <p style="font-size:0.78rem; color:var(--text-muted); margin-top:0.25rem;">
+          Full permissions: edit letters, delete records, and grant/revoke access.
+        </p>
+      </div>
+
+      <div class="access-add-form" style="margin: 1.25rem 0;">
+        <label class="input-label">Authorize New Editor Email</label>
+        <div style="display:flex; gap:0.5rem; align-items:center;">
+          <input type="email" id="newEditorEmail" class="input-field" placeholder="user@gmail.com" style="flex:1;">
+          <button type="button" class="confirm-add-btn" onclick="handleAddEditor()" style="padding:0.7rem 1.25rem;">
+            + Grant Access
+          </button>
+        </div>
+      </div>
+
+      <h4 style="font-size:0.9rem; font-weight:700; color:var(--text-secondary); margin-bottom:0.75rem;">
+        Authorized Editors (${editors.length})
+      </h4>
+  `;
+
+  if (!editors.length) {
+    html += `
+      <div class="letters-empty-state" style="padding: 1.5rem;">
+        <p>No extra editors added yet. Enter a Google email above to give user access.</p>
+      </div>
+    `;
+  } else {
+    html += `<div class="access-editors-grid">`;
+    editors.forEach(email => {
+      html += `
+        <div class="access-editor-item">
+          <div style="display:flex; align-items:center; gap:0.6rem;">
+            <div class="rec-uploader-avatar" style="background:var(--primary); color:white; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:0.8rem;">
+              ${email.substring(0, 2).toUpperCase()}
+            </div>
+            <div>
+              <div style="font-weight:600; color:var(--text-primary); font-size:0.88rem;">${escHtml(email)}</div>
+              <span class="role-badge role-editor" style="font-size:0.65rem;">Editor</span>
+            </div>
+          </div>
+          <button type="button" class="rec-delete-btn" onclick="handleRevokeEditor('${escHtml(email)}')" title="Revoke Editor Access">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-1 14H6L5 6"></path><path d="M10 11v6"></path><path d="M14 11v6"></path><path d="M9 6V4h6v2"></path></svg>
+          </button>
+        </div>
+      `;
+    });
+    html += `</div>`;
+  }
+
+  html += `</div>`;
+  container.innerHTML = html;
+}
+
+async function handleAddEditor() {
+  const email = document.getElementById('newEditorEmail')?.value.trim();
+  if (!email) return;
+  const ok = await grantEditorAccess(email);
+  if (ok) {
+    document.getElementById('newEditorEmail').value = '';
+    renderAccessManagementList();
+  }
+}
+
+async function handleRevokeEditor(email) {
+  if (!confirm(`Are you sure you want to revoke editor access for ${email}?`)) return;
+  const ok = await revokeEditorAccess(email);
+  if (ok) {
+    renderAccessManagementList();
+  }
+}
+
 // ── Photo Viewer Lightbox ───────────────────────────────────────────────────
 async function viewLetterPhoto(id) {
-  const letters = await dbGetAllRecords();
-  const record = letters.find(l => l.id === id);
+  const letters = await getAllLettersCombined();
+  const record = letters.find(l => String(l.id) === String(id));
   if (!record || !record.fileData) {
     alert('No photo document attached to this letter record.');
     return;
