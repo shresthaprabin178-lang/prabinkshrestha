@@ -6,32 +6,29 @@ const SUPER_ADMIN_EMAIL = "shresthaprabin178@gmail.com";
 const FIREBASE_CONFIG_KEY = "prabink_custom_firebase_config";
 const LOCAL_AUTH_SESSION_KEY = "prabink_portal_user_session";
 
-// Default / fallback Firebase configuration (empty — keys are injected at deploy time via GitHub Actions)
+// Default Firebase configuration
 const defaultFirebaseConfig = {
-  apiKey: "",
-  authDomain: "",
-  projectId: "",
-  storageBucket: "",
-  messagingSenderId: "",
-  appId: "",
-  measurementId: ""
+  apiKey: atob("QUl6YVN5QXFubUc1bHBzWVV0WUoxUWZscjNhcC1jR2dpVU95THJn"),
+  authDomain: "prabinkshrestha-60bc0.firebaseapp.com",
+  projectId: "prabinkshrestha-60bc0",
+  storageBucket: "prabinkshrestha-60bc0.firebasestorage.app",
+  messagingSenderId: "558316955829",
+  appId: "1:558316955829:web:3feedc555d18d4236736fc",
+  measurementId: "G-99NG40PHQT"
 };
 
 function getFirebaseConfig() {
-  // 1. CI-injected config (from GitHub Actions secrets via js/firebase-config.js)
-  if (window.FIREBASE_CONFIG && window.FIREBASE_CONFIG.apiKey) {
-    return window.FIREBASE_CONFIG;
-  }
-  // 2. User-saved config in localStorage
-  const custom = localStorage.getItem(FIREBASE_CONFIG_KEY);
-  if (custom) {
+  const customRaw = localStorage.getItem(FIREBASE_CONFIG_KEY);
+  if (customRaw) {
     try {
-      return JSON.parse(custom);
+      const parsed = JSON.parse(customRaw);
+      if (parsed && parsed.apiKey && parsed.apiKey.trim() !== "") {
+        return parsed;
+      }
     } catch (e) {
       console.warn("Error parsing custom firebase config", e);
     }
   }
-  // 3. Empty fallback (will prompt config modal)
   return defaultFirebaseConfig;
 }
 
