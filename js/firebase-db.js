@@ -112,8 +112,9 @@ function initFirebase() {
     firebaseAuth.onAuthStateChanged(async (user) => {
       if (user) {
         await setLoggedInUser(user);
-      } else if (!localStorage.getItem(LOCAL_AUTH_SESSION_KEY)) {
+      } else {
         currentUser = null;
+        localStorage.removeItem(LOCAL_AUTH_SESSION_KEY);
         updateAuthUI(null);
       }
     });
@@ -128,9 +129,9 @@ function initFirebase() {
 
 async function setLoggedInUser(user) {
   currentUser = {
-    uid: user.uid || 'local-' + Date.now(),
-    displayName: user.displayName || user.email?.split('@')[0] || 'User',
-    email: user.email || 'user@example.com',
+    uid: user.uid || 'user-' + Date.now(),
+    displayName: user.displayName || (user.email ? user.email.split('@')[0] : 'User'),
+    email: (user.email || '').toLowerCase().trim(),
     photoURL: user.photoURL || null
   };
 
@@ -157,14 +158,12 @@ async function signInWithGoogle() {
   if (!isFirebaseReady || !firebaseAuth) {
     const config = getFirebaseConfig();
     if (!config.apiKey || config.apiKey.trim() === "") {
-      // Firebase not configured yet — open config modal directly
       showFirebaseConfigModal();
       return;
     }
-    // Config exists but Firebase failed to init — try reinitialising
     const reinited = initFirebase();
     if (!reinited) {
-      showFirebaseConfigModal();
+      alert("Unable to initialize Firebase. Please check network connection.");
       return;
     }
   }
@@ -179,9 +178,12 @@ async function signInWithGoogle() {
       await setLoggedInUser(result.user);
       return result.user;
     } catch (popupErr) {
-      if (popupErr.code === 'auth/popup-blocked' || popupErr.code === 'auth/popup-closed-by-user') {
-        console.log("Popup blocked or closed, falling back to redirect...");
+      if (popupErr.code === 'auth/popup-blocked') {
+        console.log("Popup blocked, falling back to redirect...");
         await firebaseAuth.signInWithRedirect(provider);
+        return;
+      }
+      if (popupErr.code === 'auth/popup-closed-by-user' || popupErr.code === 'auth/cancelled-popup-request') {
         return;
       }
       throw popupErr;
@@ -189,26 +191,11 @@ async function signInWithGoogle() {
   } catch (error) {
     console.error("Google Sign-In error:", error);
     if (error.code === 'auth/unauthorized-domain') {
-      alert("This domain is not authorized in your Firebase Authentication settings.\n\nPlease add 'prabinkshrestha.com.np' to Firebase Console › Authentication › Settings › Authorized Domains.\n\nLogging in via offline access mode...");
-      signInAsSuperAdmin();
-    } else if (error.code === 'auth/configuration-not-found' || error.code === 'auth/invalid-api-key') {
-      showFirebaseConfigModal();
+      alert("This domain is not authorized in your Firebase Authentication settings.\n\nPlease add 'prabinkshrestha.com.np' to Firebase Console › Authentication › Settings › Authorized Domains.");
     } else {
-      alert("Google Sign-In failed: " + (error.message || "Unknown error.") + "\n\nFalling back to offline access.");
-      signInAsSuperAdmin();
+      alert("Google Sign-In failed: " + (error.message || "Please try again."));
     }
   }
-}
-
-// Quick Login as Super Admin (Offline/Direct Access Mode)
-function signInAsSuperAdmin() {
-  const adminUser = {
-    uid: 'admin-super-01',
-    displayName: 'Prabink Shrestha',
-    email: SUPER_ADMIN_EMAIL,
-    photoURL: null
-  };
-  setLoggedInUser(adminUser);
 }
 
 // Quick Login with Custom Email
@@ -621,14 +608,9 @@ function showFirebaseConfigModal() {
             <input type="text" id="fbCfgAppId" class="input-field" placeholder="1:123456789:web:abcdef">
           </div>
         </div>
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 1.25rem;">
-          <button type="button" class="btn-preview-photo" onclick="signInAsSuperAdmin(); closeFirebaseConfigModal();" style="padding: 0.6rem 1rem; color: var(--primary);">
-            🚀 Skip &amp; Quick Login
-          </button>
-          <div style="display: flex; gap: 0.5rem;">
-            <button type="button" class="btn-preview-photo" onclick="closeFirebaseConfigModal()" style="padding: 0.6rem 1rem;">Cancel</button>
-            <button type="button" class="confirm-add-btn" onclick="saveAndApplyFirebaseConfig()" style="padding: 0.6rem 1.25rem;">Save &amp; Connect</button>
-          </div>
+        <div style="display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1.25rem;">
+          <button type="button" class="btn-preview-photo" onclick="closeFirebaseConfigModal()" style="padding: 0.6rem 1rem;">Cancel</button>
+          <button type="button" class="confirm-add-btn" onclick="saveAndApplyFirebaseConfig()" style="padding: 0.6rem 1.25rem;">Save &amp; Connect</button>
         </div>
       </div>
     `;

@@ -172,6 +172,46 @@ function handleBreakpoint(e) {
 mq.addEventListener('change', handleBreakpoint);
 
 // ==========================================================================
+// LAST PUSHED TIMESTAMP (Live GitHub Commit Date in Nepal Standard Time)
+// ==========================================================================
+async function updateLastPushedTimestamp() {
+  const el = document.getElementById('lastPushedStamp');
+  if (!el) return;
+
+  try {
+    const res = await fetch('https://api.github.com/repos/shresthaprabin178-lang/prabinkshrestha/commits/main', {
+      headers: { 'Accept': 'application/vnd.github.v3+json' }
+    });
+    if (!res.ok) throw new Error('GitHub API ' + res.status);
+    const data = await res.json();
+    const isoDate = data.commit?.committer?.date || data.commit?.author?.date;
+    if (isoDate) {
+      const d = new Date(isoDate);
+      const parts = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Asia/Kathmandu',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false
+      }).formatToParts(d);
+
+      const m = {};
+      parts.forEach(p => { m[p.type] = p.value; });
+      el.textContent = `${m.year}-${m.month}-${m.day} ${m.hour}:${m.minute}:${m.second} NPT`;
+      return;
+    }
+  } catch (err) {
+    console.info('Could not retrieve live commit timestamp:', err);
+    if (el.textContent === 'Loading...') {
+      el.textContent = new Date().toISOString().slice(0, 10) + ' NPT';
+    }
+  }
+}
+
+// ==========================================================================
 // INIT
 // ==========================================================================
 window.addEventListener('DOMContentLoaded', () => {
@@ -181,4 +221,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
   // Start on profile
   switchView('profile');
+
+  // Load latest pushed timestamp from GitHub
+  updateLastPushedTimestamp();
 });
