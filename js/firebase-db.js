@@ -6,7 +6,7 @@ const SUPER_ADMIN_EMAIL = "shresthaprabin178@gmail.com";
 const FIREBASE_CONFIG_KEY = "prabink_custom_firebase_config";
 const LOCAL_AUTH_SESSION_KEY = "prabink_portal_user_session";
 
-// Default / fallback Firebase configuration
+// Default / fallback Firebase configuration (empty — keys are injected at deploy time via GitHub Actions)
 const defaultFirebaseConfig = {
   apiKey: "",
   authDomain: "",
@@ -18,6 +18,11 @@ const defaultFirebaseConfig = {
 };
 
 function getFirebaseConfig() {
+  // 1. CI-injected config (from GitHub Actions secrets via js/firebase-config.js)
+  if (window.FIREBASE_CONFIG && window.FIREBASE_CONFIG.apiKey) {
+    return window.FIREBASE_CONFIG;
+  }
+  // 2. User-saved config in localStorage
   const custom = localStorage.getItem(FIREBASE_CONFIG_KEY);
   if (custom) {
     try {
@@ -26,6 +31,7 @@ function getFirebaseConfig() {
       console.warn("Error parsing custom firebase config", e);
     }
   }
+  // 3. Empty fallback (will prompt config modal)
   return defaultFirebaseConfig;
 }
 
