@@ -730,10 +730,13 @@ function clearLettersFilters() {
 }
 
 async function checkAndRefreshLettersAccess() {
+  const user = typeof getCurrentUser === 'function' ? getCurrentUser() : null;
+  if (user && user.email && typeof checkUserAccessOnline === 'function') {
+    await checkUserAccessOnline(user.email);
+  }
   if (typeof loadUserRoles === 'function') {
     await loadUserRoles();
   }
-  const user = typeof getCurrentUser === 'function' ? getCurrentUser() : null;
   if (user && typeof updateAuthUI === 'function') {
     updateAuthUI(user);
   }
@@ -747,8 +750,13 @@ async function renderLettersList() {
 
   const user = typeof getCurrentUser === 'function' ? getCurrentUser() : null;
   const isSuper = typeof isCurrentUserSuperAdmin === 'function' ? isCurrentUserSuperAdmin() : false;
-  const hasAccess = typeof hasLettersAccess === 'function' ? hasLettersAccess(user) : isSuper;
-  const canEdit = typeof canUserEditLetters === 'function' ? canUserEditLetters(user) : false;
+  let hasAccess = typeof hasLettersAccess === 'function' ? hasLettersAccess(user) : isSuper;
+  
+  if (!hasAccess && user && user.email && typeof checkUserAccessOnline === 'function') {
+    hasAccess = await checkUserAccessOnline(user.email);
+  }
+
+  const canEdit = typeof canUserEditLetters === 'function' ? canUserEditLetters(user) : isSuper;
 
   // If user is not authorized by Super Admin, display restricted notice
   if (!hasAccess) {
@@ -1203,6 +1211,7 @@ async function handleAddEditor() {
   const ok = await grantEditorAccess(email);
   if (ok) {
     document.getElementById('newEditorEmail').value = '';
+    alert(`✓ Access granted successfully for ${email}.\nThey can now access the Letters repository and upload correspondence.`);
     renderAccessManagementList();
   }
 }
@@ -1211,6 +1220,7 @@ async function handleRevokeEditor(email) {
   if (!confirm(`Are you sure you want to revoke editor access for ${email}?`)) return;
   const ok = await revokeEditorAccess(email);
   if (ok) {
+    alert(`Access revoked for ${email}.`);
     renderAccessManagementList();
   }
 }

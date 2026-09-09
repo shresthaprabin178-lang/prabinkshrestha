@@ -238,9 +238,10 @@ function getCurrentUser() {
 }
 
 // ── Role-Based Access Control (RBAC) ──────────────────────────────────────
-function isSuperAdmin(email) {
-  if (!email) return false;
-  return email.toLowerCase().trim() === SUPER_ADMIN_EMAIL.toLowerCase().trim();
+function isSuperAdmin(userOrEmail) {
+  if (!userOrEmail) return false;
+  const email = (typeof userOrEmail === 'string' ? userOrEmail : (userOrEmail.email || '')).toLowerCase().trim();
+  return email === SUPER_ADMIN_EMAIL.toLowerCase().trim();
 }
 
 function isCurrentUserSuperAdmin() {
@@ -248,57 +249,177 @@ function isCurrentUserSuperAdmin() {
   return isSuperAdmin(currentUser.email);
 }
 
-function canUserEditLetters(user) {
-  if (!user || !user.email) return false;
-  const email = user.email.toLowerCase().trim();
+function canUserEditLetters(userOrEmail) {
+  if (!userOrEmail) return false;
+  const email = (typeof userOrEmail === 'string' ? userOrEmail : (userOrEmail.email || '')).toLowerCase().trim();
+  if (!email) return false;
   if (isSuperAdmin(email)) return true;
   return userRolesCache.editors.map(e => e.toLowerCase().trim()).includes(email);
 }
 
-function hasLettersAccess(user) {
-  if (!user || !user.email) return false;
-  const email = user.email.toLowerCase().trim();
+function hasLettersAccess(userOrEmail) {
+  if (!userOrEmail) return false;
+  const email = (typeof userOrEmail === 'string' ? userOrEmail : (userOrEmail.email || '')).toLowerCase().trim();
+  if (!email) return false;
   if (isSuperAdmin(email)) return true;
   return userRolesCache.editors.map(e => e.toLowerCase().trim()).includes(email);
 }
 
 let rolesUnsubscribe = null;
+let authUsersUnsubscribe = null;
+
+async function checkUserAccessOnline(email) {
+  if (!email || !firestoreDb) return false;
+  const cleanEmail = email.toLowerCase().trim();
+  if (isSuperAdmin(cleanEmail)) return true;
+
+  // Check 1: Individual document in authorized_users collection
+  try {
+    const doc = await firestoreDb.collection("authorized_users").doc(cleanEmail).get();
+    if (doc.exists) {
+      const d = doc.data() || {};
+      if (d.active !== false) {
+        if (!userRolesCache.editors.map(x => x.toLowerCase().trim()).includes(cleanEmail)) {
+          userRolesCache.editors.push(cleanEmail);
+        }
+        return true;
+      }
+    }
+  } catch (e) {
+    console.warn("authorized_users doc check error:", e);
+  }
+
+  // Check 2: settings/roles document
+  try {
+    const rDoc = await firestoreDb.collection("settings").doc("roles").get();
+    if (rDoc.exists) {
+      const data = rDoc.data() || {};
+      const editors = Array.isArray(data.editors) ? data.editors.map(x => x.toLowerCase().trim()) : [];
+      editors.forEach(ed => {
+        if (!userRolesCache.editors.includes(ed)) userRolesCache.editors.push(ed);
+      });
+      if (editors.includes(cleanEmail)) return true;
+    }
+  } catch (e) {
+    console.warn("settings/roles check error:", e);
+  }
+
+  // Check 3: roles/access document
+  try {
+    const aDoc = await firestoreDb.collection("roles").doc("access").get();
+    if (aDoc.exists) {
+      const data = aDoc.data() || {};
+      const editors = Array.isArray(data.editors) ? data.editors.map(x => x.toLowerCase().trim()) : [];
+      editors.forEach(ed => {
+        if (!userRolesCache.editors.includes(ed)) userRolesCache.editors.push(ed);
+      });
+      if (editors.includes(cleanEmail)) return true;
+    }
+  } catch (e) {
+    console.warn("roles/access check error:", e);
+  }
+
+  return userRolesCache.editors.map(x => x.toLowerCase().trim()).includes(cleanEmail);
+}
 
 async function loadUserRoles() {
   if (!firestoreDb) return;
+
+  const foundEditors = new Set(userRolesCache.editors.map(e => e.toLowerCase().trim()));
+
+  // 1. Try authorized_users collection (list all)
+  try {
+    const snap = await firestoreDb.collection("authorized_users").get();
+    snap.forEach(doc => {
+      const d = doc.data() || {};
+      const email = (d.email || doc.id || '').toLowerCase().trim();
+      if (email && d.active !== false) {
+        foundEditors.add(email);
+      }
+    });
+  } catch (err) {
+    console.warn("Could not query authorized_users collection:", err);
+  }
+
+  // 2. Try settings/roles doc
   try {
     const rolesDoc = await firestoreDb.collection("settings").doc("roles").get();
     if (rolesDoc.exists) {
-      userRolesCache = rolesDoc.data() || { editors: [] };
-      if (!Array.isArray(userRolesCache.editors)) {
-        userRolesCache.editors = [];
+      const data = rolesDoc.data() || {};
+      if (Array.isArray(data.editors)) {
+        data.editors.forEach(e => foundEditors.add(String(e).toLowerCase().trim()));
       }
-    } else {
-      userRolesCache = { editors: [] };
     }
   } catch (err) {
-    console.warn("Could not load user roles from Firestore:", err);
+    console.warn("Could not load settings/roles:", err);
   }
 
-  // Subscribe to real-time role changes so access updates immediately across devices
+  // 3. Try roles/access doc
+  try {
+    const accessDoc = await firestoreDb.collection("roles").doc("access").get();
+    if (accessDoc.exists) {
+      const data = accessDoc.data() || {};
+      if (Array.isArray(data.editors)) {
+        data.editors.forEach(e => foundEditors.add(String(e).toLowerCase().trim()));
+      }
+    }
+  } catch (err) {
+    console.warn("Could not load roles/access:", err);
+  }
+
+  // If current user is logged in, do a targeted check on their specific doc ID
+  if (currentUser && currentUser.email) {
+    const userEmail = currentUser.email.toLowerCase().trim();
+    try {
+      const userDoc = await firestoreDb.collection("authorized_users").doc(userEmail).get();
+      if (userDoc.exists && userDoc.data()?.active !== false) {
+        foundEditors.add(userEmail);
+      }
+    } catch (e) {}
+  }
+
+  userRolesCache.editors = Array.from(foundEditors);
+
+  // Subscribe to real-time authorized_users collection changes
+  if (!authUsersUnsubscribe && firestoreDb) {
+    try {
+      authUsersUnsubscribe = firestoreDb.collection("authorized_users").onSnapshot(snap => {
+        snap.forEach(doc => {
+          const d = doc.data() || {};
+          const em = (d.email || doc.id || '').toLowerCase().trim();
+          if (em && d.active !== false) {
+            if (!userRolesCache.editors.includes(em)) {
+              userRolesCache.editors.push(em);
+            }
+          }
+        });
+        if (currentUser) updateAuthUI(currentUser);
+      }, err => {
+        console.warn("authorized_users snapshot listener:", err);
+      });
+    } catch (e) {}
+  }
+
+  // Subscribe to real-time settings/roles changes
   if (!rolesUnsubscribe && firestoreDb) {
     try {
       rolesUnsubscribe = firestoreDb.collection("settings").doc("roles").onSnapshot(doc => {
         if (doc && doc.exists) {
           const data = doc.data() || {};
-          userRolesCache = {
-            editors: Array.isArray(data.editors) ? data.editors : []
-          };
+          if (Array.isArray(data.editors)) {
+            data.editors.forEach(e => {
+              const clean = String(e).toLowerCase().trim();
+              if (!userRolesCache.editors.includes(clean)) {
+                userRolesCache.editors.push(clean);
+              }
+            });
+          }
         }
-        if (currentUser) {
-          updateAuthUI(currentUser);
-        }
+        if (currentUser) updateAuthUI(currentUser);
       }, err => {
         console.warn("Real-time roles listener warning:", err);
       });
-    } catch (e) {
-      console.warn("Could not attach roles listener:", e);
-    }
+    } catch (e) {}
   }
 }
 
@@ -313,25 +434,41 @@ async function grantEditorAccess(email) {
     return false;
   }
 
-  if (cleanEmail === SUPER_ADMIN_EMAIL.toLowerCase()) {
+  if (cleanEmail === SUPER_ADMIN_EMAIL.toLowerCase().trim()) {
     alert("This email is already the Super Admin with full access.");
     return false;
   }
 
-  if (userRolesCache.editors.map(e => e.toLowerCase().trim()).includes(cleanEmail)) {
-    alert("This user already has authorized access to letters.");
-    return false;
+  if (!userRolesCache.editors.map(e => e.toLowerCase().trim()).includes(cleanEmail)) {
+    userRolesCache.editors.push(cleanEmail);
   }
-
-  userRolesCache.editors.push(cleanEmail);
 
   if (firestoreDb) {
     try {
+      // 1. Write dedicated document in authorized_users collection
+      await firestoreDb.collection("authorized_users").doc(cleanEmail).set({
+        email: cleanEmail,
+        role: "editor",
+        active: true,
+        grantedBy: currentUser ? currentUser.email : SUPER_ADMIN_EMAIL,
+        grantedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      }, { merge: true });
+
+      // 2. Also write to settings/roles
       await firestoreDb.collection("settings").doc("roles").set({
         editors: userRolesCache.editors,
         updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
         updatedBy: currentUser ? currentUser.email : SUPER_ADMIN_EMAIL
       }, { merge: true });
+
+      // 3. Also write to roles/access
+      await firestoreDb.collection("roles").doc("access").set({
+        editors: userRolesCache.editors,
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        updatedBy: currentUser ? currentUser.email : SUPER_ADMIN_EMAIL
+      }, { merge: true });
+
       return true;
     } catch (e) {
       console.error("Failed to save role:", e);
@@ -352,11 +489,25 @@ async function revokeEditorAccess(email) {
 
   if (firestoreDb) {
     try {
+      // 1. Delete from authorized_users collection
+      try {
+        await firestoreDb.collection("authorized_users").doc(cleanEmail).delete();
+      } catch (e) {}
+
+      // 2. Update settings/roles
       await firestoreDb.collection("settings").doc("roles").set({
         editors: userRolesCache.editors,
         updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
         updatedBy: currentUser ? currentUser.email : SUPER_ADMIN_EMAIL
       }, { merge: true });
+
+      // 3. Update roles/access
+      await firestoreDb.collection("roles").doc("access").set({
+        editors: userRolesCache.editors,
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        updatedBy: currentUser ? currentUser.email : SUPER_ADMIN_EMAIL
+      }, { merge: true });
+
       return true;
     } catch (e) {
       console.error("Failed to revoke role:", e);
