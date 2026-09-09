@@ -44,8 +44,8 @@ function saveLocations(db) {
 }
 
 // ── IndexedDB Database Storage Engine (Offline cache) ─────────────────────
-const DB_NAME = 'LettersAppDB';
-const DB_VERSION = 1;
+const DB_NAME = 'PrabinkPortalDB';
+const DB_VERSION = 2;
 const STORE_NAME = 'letters_records';
 
 function openDB() {
@@ -53,8 +53,11 @@ function openDB() {
     const request = indexedDB.open(DB_NAME, DB_VERSION);
     request.onupgradeneeded = (e) => {
       const db = e.target.result;
-      if (!db.objectStoreNames.contains(STORE_NAME)) {
-        db.createObjectStore(STORE_NAME, { keyPath: 'id' });
+      if (!db.objectStoreNames.contains('letters_records')) {
+        db.createObjectStore('letters_records', { keyPath: 'id' });
+      }
+      if (!db.objectStoreNames.contains('notes_records')) {
+        db.createObjectStore('notes_records', { keyPath: 'id' });
       }
     };
     request.onsuccess = (e) => resolve(e.target.result);
@@ -128,19 +131,63 @@ function saveLettersLocalStorage(arr) {
   }
 }
 
-// ── Unified Storage Manager (Firestore with Local Cache) ──────────────────
+// ── Unified Storage Manager (Firestore with Local Cache & Cloud Sync) ───────
 async function getAllLettersCombined() {
-  if (typeof fbGetAllLetters === 'function') {
-    const fbLetters = await fbGetAllLetters();
-    if (fbLetters && fbLetters.length >= 0) {
-      // Sync into local DB for offline access
-      for (const rec of fbLetters) {
-        await dbSaveRecord(rec);
+  const localRecords = await dbGetAllRecords();
+  
+  if (typeof fbGetAllLetters === 'function' && typeof firestoreDb !== 'undefined' && firestoreDb) {
+    try {
+      const fbLetters = await fbGetAllLetters();
+      if (Array.isArray(fbLetters)) {
+        const mergedMap = new Map();
+        const cloudIdSet = new Set();
+        
+        // Add all authoritative cloud records
+        for (const rec of fbLetters) {
+          const idStr = String(rec.id);
+          mergedMap.set(idStr, rec);
+          cloudIdSet.add(idStr);
+          await dbSaveRecord(rec);
+        }
+        
+        // Handle local records
+        for (const localRec of localRecords) {
+          const idStr = String(localRec.id);
+          if (localRec._isCloud && !cloudIdSet.has(idStr)) {
+            // Document was deleted from Firestore cloud — prune local cache
+            await dbDeleteRecord(localRec.id);
+          } else if (!cloudIdSet.has(idStr)) {
+            // Local offline record created while offline
+            mergedMap.set(idStr, localRec);
+            
+            // Sync to Firestore if user has access
+            const currentUser = typeof getCurrentUser === 'function' ? getCurrentUser() : null;
+            const canSync = typeof hasLettersAccess === 'function' ? hasLettersAccess(currentUser) : false;
+            if (canSync && !localRec._syncing) {
+              localRec._syncing = true;
+              fbSaveLetter(localRec).then(async (cloudSaved) => {
+                if (cloudSaved && cloudSaved.id) {
+                  await dbDeleteRecord(localRec.id);
+                  localRec.id = cloudSaved.id;
+                  localRec._isCloud = true;
+                  localRec._syncing = false;
+                  await dbSaveRecord(localRec);
+                }
+              }).catch(() => {
+                localRec._syncing = false;
+              });
+            }
+          }
+        }
+        
+        return Array.from(mergedMap.values());
       }
-      return fbLetters;
+    } catch (e) {
+      console.warn('Letters cloud merge error, using local:', e);
     }
   }
-  return await dbGetAllRecords();
+  
+  return localRecords;
 }
 
 // ── Nepali BS Date Dropdown Population (Years 2070 - 2099 BS) ─────────────
@@ -450,6 +497,14 @@ document.addEventListener('keydown', e => {
 async function saveLetterRecord() {
   try {
     const user = typeof getCurrentUser === 'function' ? getCurrentUser() : null;
+    const isSuper = typeof isCurrentUserSuperAdmin === 'function' ? isCurrentUserSuperAdmin() : false;
+    const hasAccess = typeof hasLettersAccess === 'function' ? hasLettersAccess(user) : isSuper;
+
+    if (!hasAccess) {
+      alert(`Access Restricted: Only users authorized by Super Admin (${SUPER_ADMIN_EMAIL}) can upload letters.`);
+      return false;
+    }
+
     const subject  = document.getElementById('letterSubject')?.value.trim();
     const bsDate   = getSelectedBSDate();
     const pd       = document.getElementById('selPD')?.value;
@@ -460,8 +515,8 @@ async function saveLetterRecord() {
     if (!subject) { highlight('letterSubject'); return false; }
     if (!pd)      { highlight('selPD');         return false; }
 
-    const uploaderName = user ? (user.displayName || user.email.split('@')[0]) : "Guest User";
-    const uploaderEmail = user ? user.email : "Unregistered";
+    const uploaderName = user ? (user.displayName || (user.email ? user.email.split('@')[0] : 'User')) : "Guest User";
+    const uploaderEmail = user ? (user.email || 'Unregistered') : "Unregistered";
     const uploaderPhoto = user ? user.photoURL : null;
 
     // Compose remarks with uploader details
@@ -494,6 +549,7 @@ async function saveLetterRecord() {
       const fbSaved = await fbSaveLetter(record);
       if (fbSaved && fbSaved.id) {
         record.id = fbSaved.id;
+        record._isCloud = true;
       }
     }
 
@@ -602,20 +658,63 @@ function clearLettersFilters() {
   renderLettersList();
 }
 
+async function checkAndRefreshLettersAccess() {
+  if (typeof loadUserRoles === 'function') {
+    await loadUserRoles();
+  }
+  const user = typeof getCurrentUser === 'function' ? getCurrentUser() : null;
+  if (user && typeof updateAuthUI === 'function') {
+    updateAuthUI(user);
+  }
+  await renderLettersList();
+}
+
 // ── Render & Sort Records List ──────────────────────────────────────────────
 async function renderLettersList() {
   const container  = document.getElementById('lettersList');
   if (!container) return;
+
+  const user = typeof getCurrentUser === 'function' ? getCurrentUser() : null;
+  const isSuper = typeof isCurrentUserSuperAdmin === 'function' ? isCurrentUserSuperAdmin() : false;
+  const hasAccess = typeof hasLettersAccess === 'function' ? hasLettersAccess(user) : isSuper;
+  const canEdit = typeof canUserEditLetters === 'function' ? canUserEditLetters(user) : false;
+
+  // If user is not authorized by Super Admin, display restricted notice
+  if (!hasAccess) {
+    const userEmail = user ? (user.email || 'Guest') : 'Not signed in';
+    container.innerHTML = `
+      <div class="letters-empty-state access-denied-box" style="padding: 2.5rem 1.5rem; text-align: center;">
+        <div style="font-size: 2.5rem; margin-bottom: 0.75rem;">🔒</div>
+        <h3 style="color: var(--text-primary); font-size: 1.2rem; font-weight: 700; margin-bottom: 0.5rem;">
+          Letters Repository Access Restricted
+        </h3>
+        <p style="max-width: 520px; margin: 0 auto 1.25rem auto; line-height: 1.6; color: var(--text-secondary); font-size: 0.9rem;">
+          The letters repository contains official correspondence and documents. Access is strictly granted by the Super Admin (<strong style="color:var(--text-primary);">${typeof SUPER_ADMIN_EMAIL !== 'undefined' ? SUPER_ADMIN_EMAIL : 'shresthaprabin178@gmail.com'}</strong>).
+        </p>
+        <div style="display: inline-flex; align-items: center; gap: 0.5rem; background: rgba(255,255,255,0.04); border: 1px solid var(--card-border); padding: 0.5rem 1rem; border-radius: 20px; font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 1.25rem;">
+          <span>Current Account:</span>
+          <strong style="color: var(--primary);">${escHtml(userEmail)}</strong>
+        </div>
+        <div style="display: flex; justify-content: center; gap: 0.75rem;">
+          <button type="button" class="confirm-add-btn" onclick="checkAndRefreshLettersAccess()" style="padding: 0.65rem 1.25rem;">
+            🔄 Refresh Access Status
+          </button>
+        </div>
+      </div>`;
+    
+    // Update count badge & count row
+    const countBadge = document.getElementById('lettersTabCount');
+    if (countBadge) countBadge.textContent = '';
+    const countRow = document.getElementById('lettersCountRow');
+    if (countRow) countRow.textContent = 'Access restricted by Super Admin';
+    return;
+  }
 
   const query     = (document.getElementById('lettersSearch')?.value || '').toLowerCase().trim();
   const sortMode  = document.getElementById('lettersSort')?.value || 'date-desc';
   const filterPD  = document.getElementById('filterPD')?.value || '';
   const filterOff = document.getElementById('filterOffice')?.value || '';
   const filterYear = document.getElementById('filterYear')?.value || '';
-
-  const user = typeof getCurrentUser === 'function' ? getCurrentUser() : null;
-  const isSuper = typeof isCurrentUserSuperAdmin === 'function' ? isCurrentUserSuperAdmin() : false;
-  const canEdit = typeof canUserEditLetters === 'function' ? canUserEditLetters(user) : false;
 
   let letters = await getAllLettersCombined();
 
@@ -654,7 +753,7 @@ async function renderLettersList() {
     const hasFilters = query || filterPD || filterOff || filterYear;
     countRow.textContent = hasFilters
       ? `Showing ${letters.length} of ${totalAll.length} record${totalAll.length !== 1 ? 's' : ''}`
-      : `${totalAll.length} record${totalAll.length !== 1 ? 's' : ''} total`;
+      : `${totalAll.length} record${totalAll.length !== 1 ? 's' : ''} total (All Uploaders)`;
   }
 
   // Sorting Logic
@@ -698,7 +797,7 @@ async function renderLettersList() {
 
     // Uploader identity badge
     const uploaderHtml = l.uploaderName
-      ? `<div class="rec-uploader-tag" title="${escHtml(l.uploaderEmail || '')}">
+      ? `<div class="rec-uploader-tag" title="Uploaded by: ${escHtml(l.uploaderEmail || '')}">
           ${l.uploaderPhoto ? `<img src="${l.uploaderPhoto}" class="rec-uploader-avatar" alt="Avatar">` : `<span class="rec-uploader-icon">👤</span>`}
           <span>${escHtml(l.uploaderName)}</span>
          </div>`
@@ -953,7 +1052,7 @@ async function renderAccessManagementList() {
   if (!isSuper) {
     container.innerHTML = `
       <div class="letters-empty-state">
-        <p>Access Denied: Only Super Admin (shresthaprabin178@gmail.com) can manage permissions.</p>
+        <p>Access Denied: Only Super Admin (${typeof SUPER_ADMIN_EMAIL !== 'undefined' ? SUPER_ADMIN_EMAIL : 'shresthaprabin178@gmail.com'}) can manage permissions.</p>
       </div>`;
     return;
   }
@@ -969,32 +1068,35 @@ async function renderAccessManagementList() {
       <div class="access-superadmin-box">
         <span class="role-badge role-superadmin">Super Admin</span>
         <div style="font-weight:700; color:var(--text-primary); font-size:1rem; margin-top:0.35rem;">
-          shresthaprabin178@gmail.com
+          ${typeof SUPER_ADMIN_EMAIL !== 'undefined' ? SUPER_ADMIN_EMAIL : 'shresthaprabin178@gmail.com'}
         </div>
-        <p style="font-size:0.78rem; color:var(--text-muted); margin-top:0.25rem;">
-          Full permissions: edit letters, delete records, and grant/revoke access.
+        <p style="font-size:0.8rem; color:var(--text-secondary); margin-top:0.35rem; line-height:1.5;">
+          Super Admin has full access to view, upload, edit, delete, and authorize other users. All letters uploaded by authorized users are shared across everyone with access.
         </p>
       </div>
 
       <div class="access-add-form" style="margin: 1.25rem 0;">
-        <label class="input-label">Authorize New Editor Email</label>
+        <label class="input-label">Authorize User Google Email</label>
         <div style="display:flex; gap:0.5rem; align-items:center;">
-          <input type="email" id="newEditorEmail" class="input-field" placeholder="user@gmail.com" style="flex:1;">
+          <input type="email" id="newEditorEmail" class="input-field" placeholder="engineer@gmail.com" style="flex:1;">
           <button type="button" class="confirm-add-btn" onclick="handleAddEditor()" style="padding:0.7rem 1.25rem;">
             + Grant Access
           </button>
         </div>
+        <p style="font-size: 0.78rem; color: var(--text-muted); margin-top: 0.35rem;">
+          Authorized users can view all repository letters, upload new correspondence, and view full photo attachments.
+        </p>
       </div>
 
       <h4 style="font-size:0.9rem; font-weight:700; color:var(--text-secondary); margin-bottom:0.75rem;">
-        Authorized Editors (${editors.length})
+        Authorized Users (${editors.length})
       </h4>
   `;
 
   if (!editors.length) {
     html += `
       <div class="letters-empty-state" style="padding: 1.5rem;">
-        <p>No extra editors added yet. Enter a Google email above to give user access.</p>
+        <p>No additional users authorized yet. Enter a Google email above to grant repository access.</p>
       </div>
     `;
   } else {

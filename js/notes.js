@@ -17,32 +17,47 @@ let currentNoteCategoryFilter = 'All';
 async function getLocalNotes() {
   try {
     const db = await openDB();
-    if (!db.objectStoreNames.contains(NOTES_STORE_NAME)) {
-      const raw = localStorage.getItem(NOTES_LOCAL_KEY);
-      return raw ? JSON.parse(raw) : [];
+    if (db && db.objectStoreNames.contains(NOTES_STORE_NAME)) {
+      return new Promise((resolve) => {
+        const tx = db.transaction(NOTES_STORE_NAME, 'readonly');
+        const store = tx.objectStore(NOTES_STORE_NAME);
+        const req = store.getAll();
+        req.onsuccess = () => resolve(req.result || []);
+        req.onerror = () => {
+          const raw = localStorage.getItem(NOTES_LOCAL_KEY);
+          resolve(raw ? JSON.parse(raw) : []);
+        };
+      });
     }
-    return new Promise((resolve) => {
-      const tx = db.transaction(NOTES_STORE_NAME, 'readonly');
-      const store = tx.objectStore(NOTES_STORE_NAME);
-      const req = store.getAll();
-      req.onsuccess = () => resolve(req.result || []);
-      req.onerror = () => {
-        const raw = localStorage.getItem(NOTES_LOCAL_KEY);
-        resolve(raw ? JSON.parse(raw) : []);
-      };
-    });
   } catch (e) {
-    const raw = localStorage.getItem(NOTES_LOCAL_KEY);
-    return raw ? JSON.parse(raw) : [];
+    console.warn("IndexedDB notes read error, fallback to localStorage", e);
   }
+  const raw = localStorage.getItem(NOTES_LOCAL_KEY);
+  return raw ? JSON.parse(raw) : [];
 }
 
 async function saveLocalNote(note) {
-  const local = await getLocalNotes();
-  const idx = local.findIndex(n => String(n.id) === String(note.id));
-  if (idx >= 0) local[idx] = note;
-  else local.unshift(note);
   try {
+    const db = await openDB();
+    if (db && db.objectStoreNames.contains(NOTES_STORE_NAME)) {
+      await new Promise((resolve, reject) => {
+        const tx = db.transaction(NOTES_STORE_NAME, 'readwrite');
+        const store = tx.objectStore(NOTES_STORE_NAME);
+        const req = store.put(note);
+        req.onsuccess = () => resolve(true);
+        req.onerror = (e) => reject(e.target.error);
+      });
+    }
+  } catch (e) {
+    console.warn("IndexedDB note write error:", e);
+  }
+
+  // Also sync with localStorage backup
+  try {
+    const local = await getLocalNotes();
+    const idx = local.findIndex(n => String(n.id) === String(note.id));
+    if (idx >= 0) local[idx] = note;
+    else local.unshift(note);
     localStorage.setItem(NOTES_LOCAL_KEY, JSON.stringify(local));
   } catch (e) {
     console.warn("Notes localStorage quota exceeded", e);
@@ -50,24 +65,72 @@ async function saveLocalNote(note) {
 }
 
 async function deleteLocalNote(id) {
-  const local = await getLocalNotes();
-  const filtered = local.filter(n => String(n.id) !== String(id));
   try {
-    localStorage.setItem(NOTES_LOCAL_KEY, JSON.stringify(filtered));
+    const db = await openDB();
+    if (db && db.objectStoreNames.contains(NOTES_STORE_NAME)) {
+      await new Promise((resolve, reject) => {
+        const tx = db.transaction(NOTES_STORE_NAME, 'readwrite');
+        const store = tx.objectStore(NOTES_STORE_NAME);
+        const req = store.delete(id);
+        req.onsuccess = () => resolve(true);
+        req.onerror = (e) => reject(e.target.error);
+      });
+    }
+  } catch (e) {
+    console.warn("IndexedDB note delete error:", e);
+  }
+
+  try {
+    const raw = localStorage.getItem(NOTES_LOCAL_KEY);
+    if (raw) {
+      const arr = JSON.parse(raw);
+      const filtered = arr.filter(n => String(n.id) !== String(id));
+      localStorage.setItem(NOTES_LOCAL_KEY, JSON.stringify(filtered));
+    }
   } catch (e) {}
 }
 
 async function getAllNotesCombined() {
+  const localNotes = await getLocalNotes();
+
   if (typeof fbGetAllNotes === 'function') {
-    const fbNotes = await fbGetAllNotes();
-    if (fbNotes && fbNotes.length >= 0) {
-      for (const n of fbNotes) {
-        await saveLocalNote(n);
+    try {
+      const fbNotes = await fbGetAllNotes();
+      if (Array.isArray(fbNotes)) {
+        const mergedMap = new Map();
+
+        // 1. Add cloud notes
+        for (const n of fbNotes) {
+          mergedMap.set(String(n.id), n);
+          await saveLocalNote(n);
+        }
+
+        // 2. Add local-only notes and attempt cloud sync if online
+        for (const localNote of localNotes) {
+          if (!mergedMap.has(String(localNote.id))) {
+            mergedMap.set(String(localNote.id), localNote);
+            if (firestoreDb && !localNote._syncing) {
+              localNote._syncing = true;
+              fbSaveNote(localNote).then(cloudSaved => {
+                if (cloudSaved && cloudSaved.id) {
+                  deleteLocalNote(localNote.id);
+                  localNote.id = cloudSaved.id;
+                  localNote._syncing = false;
+                  saveLocalNote(localNote);
+                }
+              }).catch(() => {});
+            }
+          }
+        }
+
+        return Array.from(mergedMap.values());
       }
-      return fbNotes;
+    } catch (e) {
+      console.warn("Notes cloud fetch error, falling back to local:", e);
     }
   }
-  return await getLocalNotes();
+
+  return localNotes;
 }
 
 // ── Init Notes Module ─────────────────────────────────────────────────────
@@ -75,8 +138,19 @@ window.addEventListener('DOMContentLoaded', () => {
   initNotes();
 });
 
+if (document.readyState === 'interactive' || document.readyState === 'complete') {
+  initNotes();
+}
+
 function initNotes() {
   renderNotesList();
+
+  // Listen to Firestore real-time updates if available
+  if (typeof listenToNotes === 'function') {
+    listenToNotes((updatedNotes) => {
+      renderNotesList();
+    });
+  }
 }
 
 // ── Note Attachment Handling ──────────────────────────────────────────────

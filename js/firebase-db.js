@@ -231,7 +231,7 @@ function getCurrentUser() {
 // ── Role-Based Access Control (RBAC) ──────────────────────────────────────
 function isSuperAdmin(email) {
   if (!email) return false;
-  return email.toLowerCase() === SUPER_ADMIN_EMAIL.toLowerCase();
+  return email.toLowerCase().trim() === SUPER_ADMIN_EMAIL.toLowerCase().trim();
 }
 
 function isCurrentUserSuperAdmin() {
@@ -241,10 +241,19 @@ function isCurrentUserSuperAdmin() {
 
 function canUserEditLetters(user) {
   if (!user || !user.email) return false;
-  const email = user.email.toLowerCase();
+  const email = user.email.toLowerCase().trim();
   if (isSuperAdmin(email)) return true;
-  return userRolesCache.editors.map(e => e.toLowerCase()).includes(email);
+  return userRolesCache.editors.map(e => e.toLowerCase().trim()).includes(email);
 }
+
+function hasLettersAccess(user) {
+  if (!user || !user.email) return false;
+  const email = user.email.toLowerCase().trim();
+  if (isSuperAdmin(email)) return true;
+  return userRolesCache.editors.map(e => e.toLowerCase().trim()).includes(email);
+}
+
+let rolesUnsubscribe = null;
 
 async function loadUserRoles() {
   if (!firestoreDb) return;
@@ -261,11 +270,32 @@ async function loadUserRoles() {
   } catch (err) {
     console.warn("Could not load user roles from Firestore:", err);
   }
+
+  // Subscribe to real-time role changes so access updates immediately across devices
+  if (!rolesUnsubscribe && firestoreDb) {
+    try {
+      rolesUnsubscribe = firestoreDb.collection("settings").doc("roles").onSnapshot(doc => {
+        if (doc && doc.exists) {
+          const data = doc.data() || {};
+          userRolesCache = {
+            editors: Array.isArray(data.editors) ? data.editors : []
+          };
+        }
+        if (currentUser) {
+          updateAuthUI(currentUser);
+        }
+      }, err => {
+        console.warn("Real-time roles listener warning:", err);
+      });
+    } catch (e) {
+      console.warn("Could not attach roles listener:", e);
+    }
+  }
 }
 
 async function grantEditorAccess(email) {
   if (!isCurrentUserSuperAdmin()) {
-    alert("Only the Super Admin (" + SUPER_ADMIN_EMAIL + ") can grant editor access.");
+    alert("Only the Super Admin (" + SUPER_ADMIN_EMAIL + ") can grant access.");
     return false;
   }
   const cleanEmail = email.trim().toLowerCase();
@@ -275,12 +305,12 @@ async function grantEditorAccess(email) {
   }
 
   if (cleanEmail === SUPER_ADMIN_EMAIL.toLowerCase()) {
-    alert("This email is already the Super Admin.");
+    alert("This email is already the Super Admin with full access.");
     return false;
   }
 
-  if (userRolesCache.editors.map(e => e.toLowerCase()).includes(cleanEmail)) {
-    alert("This user is already an authorized Editor.");
+  if (userRolesCache.editors.map(e => e.toLowerCase().trim()).includes(cleanEmail)) {
+    alert("This user already has authorized access to letters.");
     return false;
   }
 
@@ -291,12 +321,12 @@ async function grantEditorAccess(email) {
       await firestoreDb.collection("settings").doc("roles").set({
         editors: userRolesCache.editors,
         updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
-        updatedBy: currentUser.email
+        updatedBy: currentUser ? currentUser.email : SUPER_ADMIN_EMAIL
       }, { merge: true });
       return true;
     } catch (e) {
-      console.error("Failed to save editor role:", e);
-      alert("Error saving editor access to Firestore: " + e.message);
+      console.error("Failed to save role:", e);
+      alert("Error saving access to Firestore: " + e.message);
       return false;
     }
   }
@@ -305,22 +335,22 @@ async function grantEditorAccess(email) {
 
 async function revokeEditorAccess(email) {
   if (!isCurrentUserSuperAdmin()) {
-    alert("Only the Super Admin (" + SUPER_ADMIN_EMAIL + ") can revoke editor access.");
+    alert("Only the Super Admin (" + SUPER_ADMIN_EMAIL + ") can revoke access.");
     return false;
   }
   const cleanEmail = email.trim().toLowerCase();
-  userRolesCache.editors = userRolesCache.editors.filter(e => e.toLowerCase() !== cleanEmail);
+  userRolesCache.editors = userRolesCache.editors.filter(e => e.toLowerCase().trim() !== cleanEmail);
 
   if (firestoreDb) {
     try {
       await firestoreDb.collection("settings").doc("roles").set({
         editors: userRolesCache.editors,
         updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
-        updatedBy: currentUser.email
+        updatedBy: currentUser ? currentUser.email : SUPER_ADMIN_EMAIL
       }, { merge: true });
       return true;
     } catch (e) {
-      console.error("Failed to revoke editor role:", e);
+      console.error("Failed to revoke role:", e);
       alert("Error updating permissions in Firestore: " + e.message);
       return false;
     }
@@ -329,34 +359,48 @@ async function revokeEditorAccess(email) {
 }
 
 // ── Firestore Letters Cloud Database CRUD ─────────────────────────────────
+function sanitizeDocData(obj) {
+  const clean = {};
+  for (const key in obj) {
+    if (obj[key] === undefined) {
+      clean[key] = null;
+    } else {
+      clean[key] = obj[key];
+    }
+  }
+  return clean;
+}
+
 async function fbSaveLetter(record) {
   if (firestoreDb) {
     try {
-      const docData = {
-        subject: record.subject,
-        dateDisplay: record.dateDisplay,
-        sortKey: record.sortKey,
-        bsYear: record.bsYear,
-        bsMonth: record.bsMonth,
-        bsDay: record.bsDay,
-        pd: record.pd,
-        district: record.district || "—",
-        office: record.office || "—",
+      const uName = currentUser ? (currentUser.displayName || (currentUser.email ? currentUser.email.split('@')[0] : 'User')) : "Guest";
+      const uEmail = currentUser ? currentUser.email : "Unknown";
+      const docData = sanitizeDocData({
+        subject: record.subject || '',
+        dateDisplay: record.dateDisplay || '',
+        sortKey: record.sortKey || 0,
+        bsYear: record.bsYear || 2083,
+        bsMonth: record.bsMonth || 1,
+        bsDay: record.bsDay || 1,
+        pd: record.pd || '',
+        district: record.district || '—',
+        office: record.office || '—',
         fileName: record.fileName || null,
         fileData: record.fileData || null,
-        uploaderName: currentUser ? (currentUser.displayName || currentUser.email.split('@')[0]) : "Guest",
-        uploaderEmail: currentUser ? currentUser.email : "Unknown",
+        uploaderName: uName,
+        uploaderEmail: uEmail,
         uploaderPhoto: currentUser ? (currentUser.photoURL || null) : null,
-        remarks: record.remarks || `Uploaded by ${currentUser ? (currentUser.displayName || currentUser.email) : 'User'}`,
+        remarks: record.remarks || `Uploaded by ${uName} (${uEmail})`,
         createdAt: firebase.firestore.FieldValue.serverTimestamp(),
         updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
         savedAt: new Date().toLocaleString()
-      };
+      });
 
       const docRef = await firestoreDb.collection("letters").add(docData);
       return { id: docRef.id, ...docData };
     } catch (err) {
-      console.error("Error saving letter to Firestore, falling back to local:", err);
+      console.warn("Error saving letter to Firestore, falling back to local:", err);
     }
   }
   return null;
@@ -365,11 +409,11 @@ async function fbSaveLetter(record) {
 async function fbUpdateLetter(id, updatedFields) {
   if (firestoreDb && id) {
     try {
-      const updateData = {
+      const updateData = sanitizeDocData({
         ...updatedFields,
         updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
         lastEditedBy: currentUser ? currentUser.email : "Unknown"
-      };
+      });
       await firestoreDb.collection("letters").doc(String(id)).update(updateData);
       return true;
     } catch (err) {
@@ -396,36 +440,49 @@ async function fbDeleteLetter(id) {
 async function fbGetAllLetters() {
   if (firestoreDb) {
     try {
-      const snapshot = await firestoreDb.collection("letters").orderBy("sortKey", "desc").get();
+      // Get all letters collection without requiring composite sort indexes in Firestore
+      const snapshot = await firestoreDb.collection("letters").get();
       const records = [];
       snapshot.forEach(doc => {
         records.push({
           id: doc.id,
+          _isCloud: true,
           ...doc.data()
         });
       });
       return records;
     } catch (err) {
-      console.warn("Firestore fetch error, fallback to local:", err);
+      console.warn("Firestore fetch letters error, fallback to local:", err);
     }
   }
   return null;
 }
 
+let lettersListenerUnsubscribe = null;
+
 function listenToLetters(onUpdate) {
+  if (lettersListenerUnsubscribe) {
+    lettersListenerUnsubscribe();
+    lettersListenerUnsubscribe = null;
+  }
+
   if (firestoreDb) {
-    return firestoreDb.collection("letters").onSnapshot(snapshot => {
+    lettersListenerUnsubscribe = firestoreDb.collection("letters").onSnapshot(snapshot => {
       const records = [];
       snapshot.forEach(doc => {
         records.push({
           id: doc.id,
+          _isCloud: true,
           ...doc.data()
         });
       });
-      onUpdate(records);
+      if (typeof onUpdate === 'function') {
+        onUpdate(records);
+      }
     }, err => {
       console.warn("Letters snapshot listener error:", err);
     });
+    return lettersListenerUnsubscribe;
   }
   return null;
 }
@@ -434,9 +491,10 @@ function listenToLetters(onUpdate) {
 async function fbSaveNote(note) {
   if (firestoreDb) {
     try {
-      const docData = {
-        title: note.title,
-        content: note.content,
+      const authorName = currentUser ? (currentUser.displayName || (currentUser.email ? currentUser.email.split('@')[0] : 'User')) : 'User';
+      const docData = sanitizeDocData({
+        title: note.title || 'Untitled Note',
+        content: note.content || '',
         category: note.category || 'General',
         color: note.color || 'blue',
         pinned: !!note.pinned,
@@ -444,16 +502,16 @@ async function fbSaveNote(note) {
         fileName: note.fileName || null,
         fileType: note.fileType || null,
         fileSize: note.fileSize || null,
-        authorEmail: currentUser ? currentUser.email : 'local',
-        authorName: currentUser ? (currentUser.displayName || currentUser.email) : 'User',
+        authorEmail: currentUser ? (currentUser.email || 'local') : 'local',
+        authorName: authorName,
         createdAt: firebase.firestore.FieldValue.serverTimestamp(),
         updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
         savedAt: new Date().toLocaleString()
-      };
+      });
       const docRef = await firestoreDb.collection("notes").add(docData);
       return { id: docRef.id, ...docData };
     } catch (err) {
-      console.warn("Error saving note to Firestore:", err);
+      console.warn("Error saving note to Firestore, falling back to local:", err);
     }
   }
   return null;
@@ -462,10 +520,11 @@ async function fbSaveNote(note) {
 async function fbUpdateNote(id, updatedFields) {
   if (firestoreDb && id) {
     try {
-      await firestoreDb.collection("notes").doc(String(id)).update({
+      const updateData = sanitizeDocData({
         ...updatedFields,
         updatedAt: firebase.firestore.FieldValue.serverTimestamp()
       });
+      await firestoreDb.collection("notes").doc(String(id)).update(updateData);
       return true;
     } catch (e) {
       console.warn("Firestore note update error:", e);
@@ -498,6 +557,21 @@ async function fbGetAllNotes() {
     } catch (e) {
       console.warn("Firestore notes fetch error:", e);
     }
+  }
+  return null;
+}
+
+function listenToNotes(onUpdate) {
+  if (firestoreDb) {
+    return firestoreDb.collection("notes").onSnapshot(snapshot => {
+      const notes = [];
+      snapshot.forEach(doc => {
+        notes.push({ id: doc.id, ...doc.data() });
+      });
+      onUpdate(notes);
+    }, err => {
+      console.warn("Notes snapshot listener error:", err);
+    });
   }
   return null;
 }

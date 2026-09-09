@@ -2,7 +2,7 @@
 <html lang="en" data-theme="dark">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Prabink Shrestha | Civil Engineer & Tech Developer</title>
   <meta name="description" content="Personal portfolio and engineering tools hub of Prabink Shrestha. Featuring Steel Section calculators, Civil Estimators, Letters repository, and Personal Notes.">
   <!-- Theme is applied before render to prevent flash -->
@@ -649,7 +649,7 @@
                 <input type="text" id="noteTitleInput" class="input-field" placeholder="Note heading / subject…">
               </div>
 
-              <div style="display:grid; grid-template-columns: 1fr 1fr auto; gap:0.75rem; align-items:center;">
+              <div class="note-editor-meta-grid">
                 <div class="input-group">
                   <label class="input-label">Category</label>
                   <select id="noteCategorySelect" class="input-field">
@@ -674,7 +674,7 @@
                   </div>
                 </div>
 
-                <div class="input-group" style="padding-top:1.25rem;">
+                <div class="input-group pin-check-group">
                   <label class="checkbox-label" style="display:flex; align-items:center; gap:0.4rem; cursor:pointer; font-size:0.82rem; color:var(--text-secondary);">
                     <input type="checkbox" id="notePinnedCheck" style="accent-color:var(--primary);">
                     <span>📌 Pin to top</span>
@@ -709,12 +709,57 @@
       </section>
 
     </main>
+
+    <!-- ============================================================
+         MOBILE BOTTOM NAVIGATION BAR
+    ============================================================ -->
+    <nav class="mobile-bottom-nav" id="mobileBottomNav" aria-label="Mobile Navigation">
+      <button type="button" class="mobile-nav-item active" id="bnav-profile" onclick="switchView('profile')" aria-label="Profile">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle>
+        </svg>
+        <span>Profile</span>
+      </button>
+
+      <button type="button" class="mobile-nav-item" id="bnav-steel-calc" onclick="switchView('steel-calc')" aria-label="Steel Section">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+        </svg>
+        <span>Steel</span>
+      </button>
+
+      <button type="button" class="mobile-nav-item" id="bnav-civil-est" onclick="switchView('civil-est')" aria-label="Civil Estimator">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+          <polyline points="14 2 14 8 20 8"></polyline>
+        </svg>
+        <span>Estimator</span>
+      </button>
+
+      <button type="button" class="mobile-nav-item" id="bnav-letters" onclick="switchView('letters')" aria-label="Letters">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+          <polyline points="22,6 12,13 2,6"></polyline>
+        </svg>
+        <span>Letters</span>
+      </button>
+
+      <button type="button" class="mobile-nav-item" id="bnav-notes" onclick="switchView('notes')" aria-label="Notes">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+          <polyline points="14 2 14 8 20 8"></polyline>
+          <line x1="16" y1="13" x2="8" y2="13"></line>
+          <line x1="16" y1="17" x2="8" y2="17"></line>
+        </svg>
+        <span>Notes</span>
+      </button>
+    </nav>
   </div>
 
-  <script src="js/firebase-db.js?v=3"></script>
-  <script src="js/main.js?v=3"></script>
-  <script src="js/steel-calc.js?v=3"></script>
-  <script src="js/letters.js?v=3"></script>
-  <script src="js/notes.js?v=3"></script>
+  <script src="js/firebase-db.js?v=5"></script>
+  <script src="js/main.js?v=5"></script>
+  <script src="js/steel-calc.js?v=5"></script>
+  <script src="js/letters.js?v=5"></script>
+  <script src="js/notes.js?v=5"></script>
 </body>
 </html>

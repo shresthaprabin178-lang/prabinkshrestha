@@ -19,11 +19,14 @@ const VIEW_LABELS = {
 // ==========================================================================
 function switchView(viewName) {
   // Deactivate all nav items
-  document.querySelectorAll('.nav-item, .nav-sub-item').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.nav-item, .nav-sub-item, .mobile-nav-item').forEach(el => el.classList.remove('active'));
 
   // Activate the matching nav item
   const navEl = document.getElementById(`nav-${viewName}`);
   if (navEl) navEl.classList.add('active');
+
+  const mobileNavEl = document.getElementById(`bnav-${viewName}`);
+  if (mobileNavEl) mobileNavEl.classList.add('active');
 
   // If a tool sub-item is active, also highlight the group parent
   if (viewName === 'steel-calc' || viewName === 'civil-est') {
@@ -35,7 +38,10 @@ function switchView(viewName) {
   // Deactivate all panels, activate target
   document.querySelectorAll('.view-panel').forEach(p => p.classList.remove('active'));
   const panel = document.getElementById(`view-${viewName}`);
-  if (panel) panel.classList.add('active');
+  if (panel) {
+    panel.classList.add('active');
+    panel.scrollTop = 0;
+  }
 
   // Update mobile topbar label
   const titleEl = document.getElementById('mobilePageTitle');
