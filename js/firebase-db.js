@@ -140,6 +140,15 @@ async function setLoggedInUser(user) {
 
   if (firestoreDb) {
     await loadUserRoles();
+    
+    // Start listening to letters real-time collection now that user and DB are ready
+    if (typeof listenToLetters === 'function') {
+      listenToLetters((records) => {
+        if (typeof renderLettersList === 'function') {
+          renderLettersList();
+        }
+      });
+    }
   }
 
   authStateCallbacks.forEach(cb => cb(currentUser));
@@ -374,8 +383,8 @@ function sanitizeDocData(obj) {
 async function fbSaveLetter(record) {
   if (firestoreDb) {
     try {
-      const uName = currentUser ? (currentUser.displayName || (currentUser.email ? currentUser.email.split('@')[0] : 'User')) : "Guest";
-      const uEmail = currentUser ? currentUser.email : "Unknown";
+      const uName = currentUser ? (currentUser.displayName || (currentUser.email ? currentUser.email.split('@')[0] : 'User')) : (record.uploaderName || "User");
+      const uEmail = currentUser ? currentUser.email : (record.uploaderEmail || "Unknown");
       const docData = sanitizeDocData({
         subject: record.subject || '',
         dateDisplay: record.dateDisplay || '',
@@ -390,7 +399,7 @@ async function fbSaveLetter(record) {
         fileData: record.fileData || null,
         uploaderName: uName,
         uploaderEmail: uEmail,
-        uploaderPhoto: currentUser ? (currentUser.photoURL || null) : null,
+        uploaderPhoto: currentUser ? (currentUser.photoURL || null) : (record.uploaderPhoto || null),
         remarks: record.remarks || `Uploaded by ${uName} (${uEmail})`,
         createdAt: firebase.firestore.FieldValue.serverTimestamp(),
         updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
@@ -400,7 +409,8 @@ async function fbSaveLetter(record) {
       const docRef = await firestoreDb.collection("letters").add(docData);
       return { id: docRef.id, ...docData };
     } catch (err) {
-      console.warn("Error saving letter to Firestore, falling back to local:", err);
+      console.error("Error saving letter to Firestore:", err);
+      throw err;
     }
   }
   return null;

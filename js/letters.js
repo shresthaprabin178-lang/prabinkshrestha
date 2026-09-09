@@ -172,6 +172,9 @@ async function getAllLettersCombined() {
                   localRec._isCloud = true;
                   localRec._syncing = false;
                   await dbSaveRecord(localRec);
+                  if (typeof renderLettersList === 'function') {
+                    renderLettersList();
+                  }
                 }
               }).catch(() => {
                 localRec._syncing = false;
@@ -241,47 +244,95 @@ function getSelectedBSDate(prefix = 'bs') {
   return { year, month, day, dateDisplay, sortKey };
 }
 
-// ── File Selection & Preview ───────────────────────────────────────────────
+// ── File Selection, Auto-Compression & Preview ────────────────────────────
 let selectedFile = null;
 let selectedFileData = null;
 
 let editSelectedFile = null;
 let editSelectedFileData = null;
 
-function handleFileSelect(input) {
+// Automatically resize and compress image to fit within Firestore limit (~100-180KB)
+function compressImageFile(file, maxDimension = 1280, quality = 0.75) {
+  return new Promise((resolve) => {
+    // If not an image or SVG, read as standard data URL
+    if (!file.type || !file.type.startsWith('image/') || file.type.includes('svg')) {
+      const reader = new FileReader();
+      reader.onload = (e) => resolve(e.target.result);
+      reader.onerror = () => resolve(null);
+      reader.readAsDataURL(file);
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        let width = img.width;
+        let height = img.height;
+
+        if (width > maxDimension || height > maxDimension) {
+          if (width > height) {
+            height = Math.round((height * maxDimension) / width);
+            width = maxDimension;
+          } else {
+            width = Math.round((width * maxDimension) / height);
+            height = maxDimension;
+          }
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+
+        // Convert to high-clarity compressed JPEG
+        const compressedDataUrl = canvas.toDataURL('image/jpeg', quality);
+        resolve(compressedDataUrl);
+      };
+      img.onerror = () => resolve(e.target.result);
+      img.src = e.target.result;
+    };
+    reader.onerror = () => resolve(null);
+    reader.readAsDataURL(file);
+  });
+}
+
+async function handleFileSelect(input) {
   const file = input.files[0];
   if (!file) return;
 
-  if (file.size > MAX_FILE_SIZE_BYTES) {
-    alert(`File size too large. (Maximum allowed size is ${MAX_FILE_SIZE_KB}KB)`);
-    input.value = '';
-    selectedFile = null;
-    selectedFileData = null;
-    const label = document.getElementById('dropzoneLabel');
-    if (label) { label.textContent = 'Click to upload or drag & drop photo'; label.style.color = ''; }
-    const zone = document.getElementById('fileDropzone');
-    if (zone) zone.classList.remove('has-file');
-    const preview = document.getElementById('uploadPreview');
-    if (preview) preview.style.display = 'none';
-    return;
-  }
-
-  selectedFile = file;
-
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    selectedFileData = e.target.result;
-    showUploadPreview(selectedFileData, file.name, file.size);
-  };
-  reader.readAsDataURL(file);
-
   const label = document.getElementById('dropzoneLabel');
   if (label) {
-    label.textContent = `✓ ${file.name} (${(file.size / 1024).toFixed(1)}KB)`;
-    label.style.color = 'var(--success)';
+    label.textContent = `⏳ Optimizing ${file.name}…`;
+    label.style.color = 'var(--primary)';
   }
-  const zone = document.getElementById('fileDropzone');
-  if (zone) zone.classList.add('has-file');
+
+  try {
+    const compressedData = await compressImageFile(file);
+    if (!compressedData) {
+      alert("Failed to process image file. Please try another image.");
+      return;
+    }
+
+    selectedFile = file;
+    selectedFileData = compressedData;
+
+    // Estimate size of compressed base64
+    const approxSizeKb = Math.round((compressedData.length * 0.75) / 1024);
+    showUploadPreview(selectedFileData, file.name, approxSizeKb * 1024);
+
+    if (label) {
+      label.textContent = `✓ ${file.name} (~${approxSizeKb} KB)`;
+      label.style.color = 'var(--success)';
+    }
+    const zone = document.getElementById('fileDropzone');
+    if (zone) zone.classList.add('has-file');
+
+  } catch (err) {
+    console.error("Error processing file:", err);
+    alert("Error reading file. Please try again.");
+  }
 }
 
 function showUploadPreview(dataUrl, fileName, fileSize) {
@@ -293,7 +344,7 @@ function showUploadPreview(dataUrl, fileName, fileSize) {
   preview.innerHTML = `
     <img src="${dataUrl}" alt="Upload preview" class="upload-preview-img" onclick="openLightboxDirect('${dataUrl.replace(/'/g, "\\'")}', '${escHtml(fileName)}')">
     <div class="upload-preview-info">
-      <span class="upload-preview-label">📎 ${escHtml(fileName)} (${kbSize} KB)</span>
+      <span class="upload-preview-label">📎 ${escHtml(fileName)} (~${kbSize} KB)</span>
       <button type="button" class="btn-preview-photo" onclick="openLightboxDirect('${dataUrl.replace(/'/g, "\\'")}', '${escHtml(fileName)}')">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
         <span>View Full Photo</span>
@@ -309,28 +360,29 @@ window.addEventListener('DOMContentLoaded', () => {
   if (zone) {
     zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag-over'); });
     zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
-    zone.addEventListener('drop', e => {
+    zone.addEventListener('drop', async e => {
       e.preventDefault();
       zone.classList.remove('drag-over');
       const file = e.dataTransfer.files[0];
       if (file) {
-        if (file.size > MAX_FILE_SIZE_BYTES) {
-          alert(`File size too large. (Maximum allowed size is ${MAX_FILE_SIZE_KB}KB)`);
-          return;
-        }
-        selectedFile = file;
-        document.getElementById('letterFile').files = e.dataTransfer.files;
-
-        const reader = new FileReader();
-        reader.onload = (ev) => {
-          selectedFileData = ev.target.result;
-          showUploadPreview(selectedFileData, file.name, file.size);
-        };
-        reader.readAsDataURL(file);
-
         const label = document.getElementById('dropzoneLabel');
-        if (label) { label.textContent = `✓ ${file.name} (${(file.size / 1024).toFixed(1)}KB)`; label.style.color = 'var(--success)'; }
-        zone.classList.add('has-file');
+        if (label) {
+          label.textContent = `⏳ Optimizing ${file.name}…`;
+          label.style.color = 'var(--primary)';
+        }
+
+        const compressedData = await compressImageFile(file);
+        if (compressedData) {
+          selectedFile = file;
+          selectedFileData = compressedData;
+          const approxSizeKb = Math.round((compressedData.length * 0.75) / 1024);
+          showUploadPreview(selectedFileData, file.name, approxSizeKb * 1024);
+          if (label) {
+            label.textContent = `✓ ${file.name} (~${approxSizeKb} KB)`;
+            label.style.color = 'var(--success)';
+          }
+          zone.classList.add('has-file');
+        }
       }
     });
   }
@@ -545,16 +597,35 @@ async function saveLetterRecord() {
     };
 
     // Save to Firestore first if online/configured
-    if (typeof fbSaveLetter === 'function') {
-      const fbSaved = await fbSaveLetter(record);
-      if (fbSaved && fbSaved.id) {
-        record.id = fbSaved.id;
-        record._isCloud = true;
-      }
+    const saveBtn = document.getElementById('btnSaveLetter');
+    const origBtnHtml = saveBtn ? saveBtn.innerHTML : '';
+    if (saveBtn) {
+      saveBtn.disabled = true;
+      saveBtn.innerHTML = `<span>⏳ Saving & Syncing to Cloud…</span>`;
     }
 
-    // Save to Local IndexedDB Cache
-    await dbSaveRecord(record);
+    try {
+      if (typeof fbSaveLetter === 'function' && typeof firestoreDb !== 'undefined' && firestoreDb) {
+        try {
+          const fbSaved = await fbSaveLetter(record);
+          if (fbSaved && fbSaved.id) {
+            record.id = fbSaved.id;
+            record._isCloud = true;
+          }
+        } catch (cloudErr) {
+          console.error("Firestore cloud save error:", cloudErr);
+          alert(`Notice: Firestore cloud save error (${cloudErr.message || cloudErr}). Saved locally.`);
+        }
+      }
+
+      // Save to Local IndexedDB Cache
+      await dbSaveRecord(record);
+    } finally {
+      if (saveBtn) {
+        saveBtn.disabled = false;
+        saveBtn.innerHTML = origBtnHtml;
+      }
+    }
 
     // Reset Form
     document.getElementById('letterSubject').value = '';
