@@ -553,10 +553,20 @@ async function saveLetterRecord() {
   try {
     const user = typeof getCurrentUser === 'function' ? getCurrentUser() : null;
     const isSuper = typeof isCurrentUserSuperAdmin === 'function' ? isCurrentUserSuperAdmin() : false;
-    const hasAccess = typeof hasLettersAccess === 'function' ? hasLettersAccess(user) : isSuper;
+
+    // Always do a live Firestore check first to avoid stale-cache false-denials
+    let hasAccess = isSuper;
+    if (!hasAccess && user && user.email) {
+      if (typeof checkUserAccessOnline === 'function') {
+        hasAccess = await checkUserAccessOnline(user.email);
+      }
+      if (!hasAccess && typeof hasLettersAccess === 'function') {
+        hasAccess = hasLettersAccess(user);
+      }
+    }
 
     if (!hasAccess) {
-      alert(`Access Restricted: Only users authorized by Super Admin (${SUPER_ADMIN_EMAIL}) can upload letters.`);
+      alert(`Access Restricted: Only users authorized by Super Admin (${typeof SUPER_ADMIN_EMAIL !== 'undefined' ? SUPER_ADMIN_EMAIL : 'shresthaprabin178@gmail.com'}) can upload letters.\n\nIf you have been granted access, please sign out and sign back in, or tap "Refresh Access Status" on the Records tab.`);
       return false;
     }
 
