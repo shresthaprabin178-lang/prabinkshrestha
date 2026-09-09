@@ -387,25 +387,28 @@ window.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  initLetters();
+  // Initialize dropdowns/form only — do NOT render letters list here.
+  // Letters rendering is deferred until auth state is confirmed (via updateAuthUI).
+  initLettersForm();
 });
 
-if (document.readyState === 'interactive' || document.readyState === 'complete') {
-  initLetters();
-}
-
 function initLetters() {
-  populatePDDropdown();
-  populateFilterPD();
-  initBSDateDropdowns();
+  initLettersForm();
+  // Render list immediately (called after auth is ready from updateAuthUI)
   renderLettersList();
 
   // Listen to Firestore real-time updates if available
   if (typeof listenToLetters === 'function') {
-    listenToLetters((updatedList) => {
+    listenToLetters(() => {
       renderLettersList();
     });
   }
+}
+
+function initLettersForm() {
+  populatePDDropdown();
+  populateFilterPD();
+  initBSDateDropdowns();
 }
 
 // ── Tab Switching ─────────────────────────────────────────────────────────
@@ -750,10 +753,16 @@ async function renderLettersList() {
 
   const user = typeof getCurrentUser === 'function' ? getCurrentUser() : null;
   const isSuper = typeof isCurrentUserSuperAdmin === 'function' ? isCurrentUserSuperAdmin() : false;
-  let hasAccess = typeof hasLettersAccess === 'function' ? hasLettersAccess(user) : isSuper;
-  
-  if (!hasAccess && user && user.email && typeof checkUserAccessOnline === 'function') {
-    hasAccess = await checkUserAccessOnline(user.email);
+
+  // Always do a fresh online check for non-superadmins to avoid stale cache denials
+  let hasAccess = isSuper;
+  if (!hasAccess && user && user.email) {
+    if (typeof checkUserAccessOnline === 'function') {
+      hasAccess = await checkUserAccessOnline(user.email);
+    }
+    if (!hasAccess && typeof hasLettersAccess === 'function') {
+      hasAccess = hasLettersAccess(user);
+    }
   }
 
   const canEdit = typeof canUserEditLetters === 'function' ? canUserEditLetters(user) : isSuper;

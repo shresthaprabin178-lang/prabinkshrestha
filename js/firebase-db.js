@@ -140,15 +140,14 @@ async function setLoggedInUser(user) {
 
   if (firestoreDb) {
     await loadUserRoles();
-    
-    // Start listening to letters real-time collection now that user and DB are ready
-    if (typeof listenToLetters === 'function') {
-      listenToLetters((records) => {
-        if (typeof renderLettersList === 'function') {
-          renderLettersList();
-        }
-      });
-    }
+  }
+
+  // Initialize letters module and set up real-time listeners (safe to call multiple times)
+  if (typeof initLetters === 'function') {
+    initLetters();
+  } else {
+    // Fallback: just render the list
+    if (typeof renderLettersList === 'function') renderLettersList();
   }
 
   authStateCallbacks.forEach(cb => cb(currentUser));
@@ -384,15 +383,21 @@ async function loadUserRoles() {
   if (!authUsersUnsubscribe && firestoreDb) {
     try {
       authUsersUnsubscribe = firestoreDb.collection("authorized_users").onSnapshot(snap => {
+        // Rebuild editors list from scratch on every snapshot (handles revokes too)
+        const freshEditors = new Set();
         snap.forEach(doc => {
           const d = doc.data() || {};
           const em = (d.email || doc.id || '').toLowerCase().trim();
           if (em && d.active !== false) {
-            if (!userRolesCache.editors.includes(em)) {
-              userRolesCache.editors.push(em);
-            }
+            freshEditors.add(em);
           }
         });
+        // Merge with any extras from settings/roles that aren't in authorized_users
+        userRolesCache.editors.forEach(e => {
+          // Keep only if they are in the fresh snapshot (authoritative source)
+          // Don't add back — this allows revokes to take effect
+        });
+        userRolesCache.editors = Array.from(freshEditors);
         if (currentUser) updateAuthUI(currentUser);
       }, err => {
         console.warn("authorized_users snapshot listener:", err);
