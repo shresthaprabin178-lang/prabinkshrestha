@@ -5,7 +5,7 @@
 const NOTES_MAX_FILE_SIZE_KB = 500;
 const NOTES_MAX_FILE_SIZE_BYTES = NOTES_MAX_FILE_SIZE_KB * 1024;
 const NOTES_STORE_NAME = 'notes_records';
-const NOTES_LOCAL_KEY = 'portal_personal_notes';
+const NOTES_LOCAL_KEY = 'portal_personal_notes'; // fallback key for offline/guest
 
 // State
 let selectedNoteAttachment = null;
@@ -13,8 +13,23 @@ let selectedNoteAttachmentData = null;
 let activeEditingNoteId = null;
 let currentNoteCategoryFilter = 'All';
 
+// ── Per-User Local Storage Key ────────────────────────────────────────────
+// Each signed-in user gets their own localStorage bucket so notes never mix.
+function getNotesLocalKey() {
+  const user = typeof getCurrentUser === 'function' ? getCurrentUser() : null;
+  if (user && user.email) {
+    const safe = user.email.toLowerCase().replace(/[^a-z0-9]/g, '_');
+    return 'portal_notes_' + safe;
+  }
+  return NOTES_LOCAL_KEY;
+}
+
 // ── Local Storage & IndexedDB Fallback ────────────────────────────────────
 async function getLocalNotes() {
+  const key = getNotesLocalKey();
+  const user = typeof getCurrentUser === 'function' ? getCurrentUser() : null;
+  const userEmail = user ? (user.email || '').toLowerCase().trim() : null;
+
   try {
     const db = await openDB();
     if (db && db.objectStoreNames.contains(NOTES_STORE_NAME)) {
@@ -22,9 +37,18 @@ async function getLocalNotes() {
         const tx = db.transaction(NOTES_STORE_NAME, 'readonly');
         const store = tx.objectStore(NOTES_STORE_NAME);
         const req = store.getAll();
-        req.onsuccess = () => resolve(req.result || []);
+        req.onsuccess = () => {
+          let results = req.result || [];
+          // Only return notes belonging to the current signed-in user
+          if (userEmail) {
+            results = results.filter(n =>
+              !n.authorEmail || n.authorEmail.toLowerCase().trim() === userEmail
+            );
+          }
+          resolve(results);
+        };
         req.onerror = () => {
-          const raw = localStorage.getItem(NOTES_LOCAL_KEY);
+          const raw = localStorage.getItem(key);
           resolve(raw ? JSON.parse(raw) : []);
         };
       });
@@ -32,11 +56,12 @@ async function getLocalNotes() {
   } catch (e) {
     console.warn("IndexedDB notes read error, fallback to localStorage", e);
   }
-  const raw = localStorage.getItem(NOTES_LOCAL_KEY);
+  const raw = localStorage.getItem(key);
   return raw ? JSON.parse(raw) : [];
 }
 
 async function saveLocalNote(note) {
+  const key = getNotesLocalKey();
   try {
     const db = await openDB();
     if (db && db.objectStoreNames.contains(NOTES_STORE_NAME)) {
@@ -52,19 +77,20 @@ async function saveLocalNote(note) {
     console.warn("IndexedDB note write error:", e);
   }
 
-  // Also sync with localStorage backup
+  // Also sync with per-user localStorage backup
   try {
     const local = await getLocalNotes();
     const idx = local.findIndex(n => String(n.id) === String(note.id));
     if (idx >= 0) local[idx] = note;
     else local.unshift(note);
-    localStorage.setItem(NOTES_LOCAL_KEY, JSON.stringify(local));
+    localStorage.setItem(key, JSON.stringify(local));
   } catch (e) {
     console.warn("Notes localStorage quota exceeded", e);
   }
 }
 
 async function deleteLocalNote(id) {
+  const key = getNotesLocalKey();
   try {
     const db = await openDB();
     if (db && db.objectStoreNames.contains(NOTES_STORE_NAME)) {
@@ -81,25 +107,28 @@ async function deleteLocalNote(id) {
   }
 
   try {
-    const raw = localStorage.getItem(NOTES_LOCAL_KEY);
+    const raw = localStorage.getItem(key);
     if (raw) {
       const arr = JSON.parse(raw);
       const filtered = arr.filter(n => String(n.id) !== String(id));
-      localStorage.setItem(NOTES_LOCAL_KEY, JSON.stringify(filtered));
+      localStorage.setItem(key, JSON.stringify(filtered));
     }
   } catch (e) {}
 }
 
 async function getAllNotesCombined() {
   const localNotes = await getLocalNotes();
+  const user = typeof getCurrentUser === 'function' ? getCurrentUser() : null;
+  const userEmail = user ? (user.email || '').toLowerCase().trim() : null;
 
   if (typeof fbGetAllNotes === 'function') {
     try {
-      const fbNotes = await fbGetAllNotes();
+      // Pass current user email so Firestore returns only this user's notes
+      const fbNotes = await fbGetAllNotes(userEmail);
       if (Array.isArray(fbNotes)) {
         const mergedMap = new Map();
 
-        // 1. Add cloud notes
+        // 1. Add cloud notes (already scoped to this user)
         for (const n of fbNotes) {
           mergedMap.set(String(n.id), n);
           await saveLocalNote(n);
@@ -145,9 +174,12 @@ if (document.readyState === 'interactive' || document.readyState === 'complete')
 function initNotes() {
   renderNotesList();
 
-  // Listen to Firestore real-time updates if available
+  // Listen to Firestore real-time updates scoped to the current user
+  const user = typeof getCurrentUser === 'function' ? getCurrentUser() : null;
+  const userEmail = user ? (user.email || '').toLowerCase().trim() : null;
+
   if (typeof listenToNotes === 'function') {
-    listenToNotes((updatedNotes) => {
+    listenToNotes(userEmail, () => {
       renderNotesList();
     });
   }

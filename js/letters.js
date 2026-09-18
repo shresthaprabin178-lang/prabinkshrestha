@@ -396,6 +396,8 @@ function initLetters() {
   initLettersForm();
   // Render list immediately (called after auth is ready from updateAuthUI)
   renderLettersList();
+  renderUploadPanelAccess();
+  if (typeof updateAccessTabBadge === 'function') updateAccessTabBadge();
 
   // Listen to Firestore real-time updates if available
   if (typeof listenToLetters === 'function') {
@@ -421,8 +423,139 @@ function switchLettersTab(tab) {
   document.getElementById('panel-records')?.classList.toggle('active', tab === 'records');
   document.getElementById('panel-access')?.classList.toggle('active', tab === 'access');
 
+  if (tab === 'upload') renderUploadPanelAccess();
   if (tab === 'records') renderLettersList();
   if (tab === 'access') renderAccessManagementList();
+}
+
+// ── Upload Panel Access Control Notice ─────────────────────────────────────
+async function renderUploadPanelAccess() {
+  const noticeEl = document.getElementById('uploadViewOnlyNotice');
+  const formCard = document.getElementById('lettersFormCard');
+  if (!noticeEl) return;
+
+  const user = typeof getCurrentUser === 'function' ? getCurrentUser() : null;
+  const isSuper = typeof isCurrentUserSuperAdmin === 'function' ? isCurrentUserSuperAdmin() : false;
+  const hasAccess = typeof hasLettersAccess === 'function' ? hasLettersAccess(user) : isSuper;
+  const canEdit = typeof canUserEditLetters === 'function' ? canUserEditLetters(user) : isSuper;
+
+  if (isSuper || canEdit) {
+    noticeEl.innerHTML = '';
+    noticeEl.style.display = 'none';
+    if (formCard) {
+      formCard.style.opacity = '1';
+      formCard.style.pointerEvents = 'auto';
+    }
+  } else if (hasAccess) {
+    // ── Viewer: read-only banner + option to request Editor upgrade ──
+    const viewerEmail = user ? (user.email || '') : '';
+    let upgradeInfo = null;
+    if (viewerEmail && typeof getUserRequestStatus === 'function') {
+      try { upgradeInfo = await getUserRequestStatus(viewerEmail); } catch (e) {}
+    }
+    const upgradeIsPending = upgradeInfo && upgradeInfo.status === 'pending';
+
+    noticeEl.style.display = 'block';
+    noticeEl.innerHTML = `
+      <div class="view-only-banner">
+        <div style="font-size: 1.6rem; line-height: 1;">👁️</div>
+        <div style="flex: 1;">
+          <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.35rem;">
+            <strong style="color: var(--text-primary); font-size: 0.95rem;">Viewer Mode (Read-Only Access)</strong>
+            <span class="role-badge role-viewer">Viewer</span>
+          </div>
+          <p style="font-size: 0.84rem; color: var(--text-secondary); line-height: 1.5; margin: 0 0 0.75rem 0;">
+            You have been granted <strong>Viewer</strong> access to the Letters Repository. You can browse, search, and view all correspondence and documents in the <strong>Saved Records</strong> tab. Uploading and editing correspondence requires <strong>Editor</strong> permissions from the Super Admin (${typeof SUPER_ADMIN_EMAIL !== 'undefined' ? SUPER_ADMIN_EMAIL : 'shresthaprabin178@gmail.com'}).
+          </p>
+          <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center;">
+            <button type="button" class="confirm-add-btn" onclick="switchLettersTab('records')" style="padding: 0.45rem 0.9rem; font-size: 0.8rem;">
+              📂 View Saved Letters
+            </button>
+            ${upgradeIsPending ? `
+              <span style="font-size:0.8rem; color:var(--text-muted); display:flex; align-items:center; gap:0.3rem;">⏳ Editor upgrade request pending Super Admin review</span>
+            ` : `
+              <button type="button" class="filter-clear-btn" id="btnViewerUpgradeReq" onclick="handleViewerUpgradeRequest()" style="padding: 0.45rem 0.9rem; font-size: 0.8rem;">
+                📩 Request Editor Access
+              </button>
+            `}
+          </div>
+        </div>
+      </div>
+    `;
+    if (formCard) {
+      formCard.style.opacity = '0.45';
+      formCard.style.pointerEvents = 'none';
+    }
+  } else {
+    // ── No access: full inline request form with pending/denied state awareness ──
+    const noAccessEmail = user ? (user.email || 'Guest') : 'Not signed in';
+
+    let requestInfo = null;
+    if (user && user.email && typeof getUserRequestStatus === 'function') {
+      try { requestInfo = await getUserRequestStatus(user.email); } catch (e) {
+        console.warn("Could not check access request status:", e);
+      }
+    }
+
+    const isPending = requestInfo && requestInfo.status === 'pending';
+    const isDenied  = requestInfo && requestInfo.status === 'denied';
+
+    noticeEl.style.display = 'block';
+    noticeEl.innerHTML = `
+      <div class="letters-empty-state access-denied-box" style="padding: 2rem 1.5rem; text-align: center; max-width: 540px; margin: 0 auto 1.5rem auto;">
+        <div style="font-size: 2.5rem; margin-bottom: 0.75rem;">${isPending ? '⏳' : '🔒'}</div>
+        <h3 style="color: var(--text-primary); font-size: 1.1rem; font-weight: 700; margin-bottom: 0.5rem;">
+          ${isPending ? 'Access Request Pending' : 'Letters Repository Access Restricted'}
+        </h3>
+        <p style="margin: 0 auto 1rem auto; line-height: 1.6; color: var(--text-secondary); font-size: 0.88rem; max-width: 420px;">
+          ${isPending
+            ? `Your request has been submitted to the Super Admin (<strong style="color:var(--text-primary);">${typeof SUPER_ADMIN_EMAIL !== 'undefined' ? SUPER_ADMIN_EMAIL : 'shresthaprabin178@gmail.com'}</strong>). You will gain access once approved.`
+            : `Access is controlled by the Super Admin (<strong style="color:var(--text-primary);">${typeof SUPER_ADMIN_EMAIL !== 'undefined' ? SUPER_ADMIN_EMAIL : 'shresthaprabin178@gmail.com'}</strong>). Submit a request below to be granted Viewer or Editor access.`
+          }
+        </p>
+        <div style="display: inline-flex; align-items: center; gap: 0.5rem; background: rgba(255,255,255,0.04); border: 1px solid var(--card-border); padding: 0.4rem 0.9rem; border-radius: 20px; font-size: 0.82rem; color: var(--text-secondary); margin-bottom: 1.1rem;">
+          <span>Signed in as:</span>
+          <strong style="color: var(--primary);">${escHtml(noAccessEmail)}</strong>
+          ${isPending ? `<span class="role-badge" style="background:rgba(234,179,8,0.15); border:1px solid rgba(234,179,8,0.4); color:#eab308; margin-left:0.25rem;">Pending</span>` : ''}
+        </div>
+        ${!user ? `
+          <p style="font-size: 0.83rem; color: var(--text-muted);">Please sign in with your Google account first to request access.</p>
+        ` : isPending ? `
+          <div style="display: flex; flex-direction: column; align-items: center; gap: 0.65rem;">
+            <p style="font-size: 0.8rem; color: var(--text-muted); line-height: 1.4;">
+              Submitted ${requestInfo.requestedAt?.toDate ? requestInfo.requestedAt.toDate().toLocaleString() : 'recently'}. Please check back later or click refresh.
+            </p>
+            <button type="button" class="confirm-add-btn" onclick="checkAndRefreshLettersAccess()" style="padding: 0.6rem 1.1rem;">
+              🔄 Refresh Access Status
+            </button>
+          </div>
+        ` : `
+          <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--card-border); border-radius: 12px; padding: 1.1rem; text-align: left;">
+            <div style="font-weight: 600; color: var(--text-primary); font-size: 0.9rem; margin-bottom: 0.35rem;">Request Permission from Super Admin</div>
+            <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.65rem; line-height: 1.4;">
+              Provide your role / designation so the Super Admin can assign the right access level (Viewer or Editor).
+            </p>
+            ${isDenied ? `<div style="background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3); color: #f87171; padding: 0.45rem 0.65rem; border-radius: 8px; font-size: 0.78rem; margin-bottom: 0.6rem;">Your previous request was not approved. You can submit a new request with details below.</div>` : ''}
+            <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+              <input type="text" id="uploadTabAccessReason" class="input-field" placeholder="Reason / Role (e.g. Site Engineer, Rupandehi project)" maxlength="120">
+              <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                <button type="button" class="confirm-add-btn" id="btnUploadTabAccessReq" onclick="handleUploadTabAccessRequest()" style="flex: 1; min-width: 160px; padding: 0.6rem 0.9rem;">
+                  📩 Send Access Request
+                </button>
+                <button type="button" class="filter-clear-btn" onclick="checkAndRefreshLettersAccess()" style="padding: 0.6rem 0.8rem;">
+                  🔄 Refresh
+                </button>
+              </div>
+            </div>
+          </div>
+        `}
+      </div>
+    `;
+    if (formCard) {
+      formCard.style.opacity = '0.35';
+      formCard.style.pointerEvents = 'none';
+    }
+  }
 }
 
 // ── Cascading Dropdowns Logic ──────────────────────────────────────────────
@@ -565,8 +698,13 @@ async function saveLetterRecord() {
       }
     }
 
-    if (!hasAccess) {
-      alert(`Access Restricted: Only users authorized by Super Admin (${typeof SUPER_ADMIN_EMAIL !== 'undefined' ? SUPER_ADMIN_EMAIL : 'shresthaprabin178@gmail.com'}) can upload letters.\n\nIf you have been granted access, please sign out and sign back in, or tap "Refresh Access Status" on the Records tab.`);
+    const canEdit = typeof canUserEditLetters === 'function' ? canUserEditLetters(user) : isSuper;
+    if (!canEdit) {
+      if (hasAccess) {
+        alert("Access Restricted: Your account has Viewer-only permissions.\n\nYou can search and view all correspondence, but only authorized Editors and the Super Admin can upload new letters.\n\nTo request Editor permissions, please contact the Super Admin.");
+      } else {
+        alert(`Access Restricted: Only users authorized by Super Admin (${typeof SUPER_ADMIN_EMAIL !== 'undefined' ? SUPER_ADMIN_EMAIL : 'shresthaprabin178@gmail.com'}) can upload letters.\n\nPlease submit an access request on the Saved Records tab.`);
+      }
       return false;
     }
 
@@ -754,6 +892,9 @@ async function checkAndRefreshLettersAccess() {
     updateAuthUI(user);
   }
   await renderLettersList();
+  if (typeof renderUploadPanelAccess === 'function') {
+    renderUploadPanelAccess();
+  }
 }
 
 // ── Render & Sort Records List ──────────────────────────────────────────────
@@ -777,34 +918,83 @@ async function renderLettersList() {
 
   const canEdit = typeof canUserEditLetters === 'function' ? canUserEditLetters(user) : isSuper;
 
-  // If user is not authorized by Super Admin, display restricted notice
+  // If user is not authorized by Super Admin, display restricted notice & request access UI
   if (!hasAccess) {
     const userEmail = user ? (user.email || 'Guest') : 'Not signed in';
+
+    let requestInfo = null;
+    if (user && user.email && typeof getUserRequestStatus === 'function') {
+      try {
+        requestInfo = await getUserRequestStatus(user.email);
+      } catch (e) {
+        console.warn("Could not check access request status:", e);
+      }
+    }
+
+    const isPending = requestInfo && requestInfo.status === 'pending';
+    const isDenied = requestInfo && requestInfo.status === 'denied';
+
     container.innerHTML = `
-      <div class="letters-empty-state access-denied-box" style="padding: 2.5rem 1.5rem; text-align: center;">
-        <div style="font-size: 2.5rem; margin-bottom: 0.75rem;">🔒</div>
-        <h3 style="color: var(--text-primary); font-size: 1.2rem; font-weight: 700; margin-bottom: 0.5rem;">
-          Letters Repository Access Restricted
+      <div class="letters-empty-state access-denied-box" style="padding: 2.5rem 1.5rem; text-align: center; max-width: 580px; margin: 1.5rem auto;">
+        <div style="font-size: 2.5rem; margin-bottom: 0.75rem;">${isPending ? '⏳' : '🔒'}</div>
+        <h3 style="color: var(--text-primary); font-size: 1.25rem; font-weight: 700; margin-bottom: 0.5rem;">
+          ${isPending ? 'Access Request Pending' : 'Letters Repository Access Restricted'}
         </h3>
-        <p style="max-width: 520px; margin: 0 auto 1.25rem auto; line-height: 1.6; color: var(--text-secondary); font-size: 0.9rem;">
-          The letters repository contains official correspondence and documents. Access is strictly granted by the Super Admin (<strong style="color:var(--text-primary);">${typeof SUPER_ADMIN_EMAIL !== 'undefined' ? SUPER_ADMIN_EMAIL : 'shresthaprabin178@gmail.com'}</strong>).
+        <p style="margin: 0 auto 1.25rem auto; line-height: 1.6; color: var(--text-secondary); font-size: 0.9rem;">
+          ${isPending 
+            ? `Your request for repository access has been submitted to the Super Admin (<strong style="color:var(--text-primary);">${typeof SUPER_ADMIN_EMAIL !== 'undefined' ? SUPER_ADMIN_EMAIL : 'shresthaprabin178@gmail.com'}</strong>). You will be able to access the repository once approved.`
+            : `The letters repository contains official correspondence and documents. Access is strictly granted by the Super Admin (<strong style="color:var(--text-primary);">${typeof SUPER_ADMIN_EMAIL !== 'undefined' ? SUPER_ADMIN_EMAIL : 'shresthaprabin178@gmail.com'}</strong>).`
+          }
         </p>
+
         <div style="display: inline-flex; align-items: center; gap: 0.5rem; background: rgba(255,255,255,0.04); border: 1px solid var(--card-border); padding: 0.5rem 1rem; border-radius: 20px; font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 1.25rem;">
           <span>Current Account:</span>
           <strong style="color: var(--primary);">${escHtml(userEmail)}</strong>
+          ${isPending ? `<span class="role-badge" style="background:rgba(234,179,8,0.15); border:1px solid rgba(234,179,8,0.4); color:#eab308; margin-left:0.35rem;">Pending</span>` : ''}
         </div>
-        <div style="display: flex; justify-content: center; gap: 0.75rem;">
-          <button type="button" class="confirm-add-btn" onclick="checkAndRefreshLettersAccess()" style="padding: 0.65rem 1.25rem;">
-            🔄 Refresh Access Status
-          </button>
-        </div>
+
+        ${!user ? `
+          <div style="margin-top: 0.5rem;">
+            <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.75rem;">Please sign in with your Google account first to request repository access.</p>
+          </div>
+        ` : isPending ? `
+          <div style="display: flex; flex-direction: column; align-items: center; gap: 0.75rem;">
+            <p style="font-size: 0.82rem; color: var(--text-muted); line-height: 1.4;">
+              Submitted ${requestInfo.requestedAt?.toDate ? requestInfo.requestedAt.toDate().toLocaleString() : 'recently'}. Please check back later or tap refresh.
+            </p>
+            <button type="button" class="confirm-add-btn" onclick="checkAndRefreshLettersAccess()" style="padding: 0.65rem 1.25rem;">
+              🔄 Refresh Access Status
+            </button>
+          </div>
+        ` : `
+          <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--card-border); border-radius: 12px; padding: 1.25rem; margin-top: 0.5rem; text-align: left;">
+            <div style="font-weight: 600; color: var(--text-primary); font-size: 0.92rem; margin-bottom: 0.4rem;">
+              Request Permission from Super Admin
+            </div>
+            <p style="font-size: 0.82rem; color: var(--text-secondary); margin-bottom: 0.85rem;">
+              Send an access request to the Super Admin. You can provide your designation or project site (e.g. Civil Engineer, Site Office Rupandehi).
+            </p>
+            ${isDenied ? `<div style="background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3); color: #f87171; padding: 0.5rem 0.75rem; border-radius: 8px; font-size: 0.8rem; margin-bottom: 0.75rem;">Your previous request was not approved. You can submit a new request below with details.</div>` : ''}
+            <div style="display: flex; flex-direction: column; gap: 0.6rem;">
+              <input type="text" id="accessRequestReason" class="input-field" placeholder="Reason / Role (e.g. Site Engineer for Rupandehi project)" maxlength="120">
+              <div style="display: flex; gap: 0.6rem; margin-top: 0.25rem; flex-wrap: wrap;">
+                <button type="button" class="confirm-add-btn" id="btnSubmitAccessReq" onclick="handleSubmitAccessRequest()" style="flex: 1; min-width: 160px; padding: 0.65rem 1rem;">
+                  📩 Send Access Request
+                </button>
+                <button type="button" class="filter-clear-btn" onclick="checkAndRefreshLettersAccess()" title="Refresh status" style="padding: 0.65rem 0.9rem;">
+                  🔄 Refresh
+                </button>
+              </div>
+            </div>
+          </div>
+        `}
       </div>`;
-    
+
     // Update count badge & count row
     const countBadge = document.getElementById('lettersTabCount');
     if (countBadge) countBadge.textContent = '';
     const countRow = document.getElementById('lettersCountRow');
-    if (countRow) countRow.textContent = 'Access restricted by Super Admin';
+    if (countRow) countRow.textContent = isPending ? 'Access request pending Super Admin review' : 'Access restricted by Super Admin';
     return;
   }
 
@@ -879,7 +1069,7 @@ async function renderLettersList() {
   container.innerHTML = letters.map(l => {
     const hasPhoto = !!l.fileData;
     const isOwner = user && l.uploaderEmail && user.email.toLowerCase() === l.uploaderEmail.toLowerCase();
-    const canUserEditThis = isSuper || canEdit || isOwner;
+    const canUserEditThis = isSuper || canEdit;
     const canUserDeleteThis = isSuper || canEdit;
 
     const thumbnailHtml = hasPhoto
@@ -1159,61 +1349,187 @@ async function renderAccessManagementList() {
     await loadUserRoles();
   }
 
-  const editors = (typeof userRolesCache !== 'undefined' && userRolesCache.editors) ? userRolesCache.editors : [];
+  // Load pending access requests and authorized users list
+  let pendingRequests = [];
+  if (typeof getPendingAccessRequests === 'function') {
+    try {
+      pendingRequests = await getPendingAccessRequests();
+    } catch (e) {
+      console.warn("Could not fetch pending requests:", e);
+    }
+  }
+
+  // Update badge on Access Control tab
+  const badge = document.getElementById('accessTabCount');
+  if (badge) {
+    badge.textContent = pendingRequests.length > 0 ? String(pendingRequests.length) : '';
+  }
+
+  let authorizedUsers = [];
+  if (typeof getAuthorizedUsersList === 'function') {
+    authorizedUsers = await getAuthorizedUsersList();
+  } else {
+    const eds = (typeof userRolesCache !== 'undefined' && userRolesCache.editors) ? userRolesCache.editors : [];
+    const vws = (typeof userRolesCache !== 'undefined' && userRolesCache.viewers) ? userRolesCache.viewers : [];
+    eds.forEach(e => authorizedUsers.push({ email: e, role: 'editor' }));
+    vws.forEach(e => authorizedUsers.push({ email: e, role: 'viewer' }));
+  }
 
   let html = `
     <div class="access-admin-card">
       <div class="access-superadmin-box">
-        <span class="role-badge role-superadmin">Super Admin</span>
-        <div style="font-weight:700; color:var(--text-primary); font-size:1rem; margin-top:0.35rem;">
-          ${typeof SUPER_ADMIN_EMAIL !== 'undefined' ? SUPER_ADMIN_EMAIL : 'shresthaprabin178@gmail.com'}
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:0.5rem;">
+          <div>
+            <span class="role-badge role-superadmin">Super Admin</span>
+            <div style="font-weight:700; color:var(--text-primary); font-size:1rem; margin-top:0.35rem;">
+              ${typeof SUPER_ADMIN_EMAIL !== 'undefined' ? SUPER_ADMIN_EMAIL : 'shresthaprabin178@gmail.com'}
+            </div>
+          </div>
+          <button type="button" class="filter-clear-btn" onclick="renderAccessManagementList()" title="Refresh requests and roles" style="padding:0.4rem 0.8rem; font-size:0.78rem;">
+            🔄 Refresh
+          </button>
         </div>
-        <p style="font-size:0.8rem; color:var(--text-secondary); margin-top:0.35rem; line-height:1.5;">
-          Super Admin has full access to view, upload, edit, delete, and authorize other users. All letters uploaded by authorized users are shared across everyone with access.
+        <p style="font-size:0.8rem; color:var(--text-secondary); margin-top:0.4rem; line-height:1.5;">
+          Super Admin has complete authority to review permission requests, grant Viewer or Editor roles, and revoke access. All correspondence uploaded by authorized users is synchronized across everyone with access.
         </p>
       </div>
 
-      <div class="access-add-form" style="margin: 1.25rem 0;">
-        <label class="input-label">Authorize User Google Email</label>
-        <div style="display:flex; gap:0.5rem; align-items:center;">
-          <input type="email" id="newEditorEmail" class="input-field" placeholder="engineer@gmail.com" style="flex:1;">
-          <button type="button" class="confirm-add-btn" onclick="handleAddEditor()" style="padding:0.7rem 1.25rem;">
+      <!-- ── Pending Access Requests Section ── -->
+      <div style="margin: 1.25rem 0 1rem 0;">
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:0.65rem;">
+          <h4 style="font-size:0.92rem; font-weight:700; color:var(--text-primary); margin:0; display:flex; align-items:center; gap:0.45rem;">
+            <span>📩 Pending Access Requests</span>
+            ${pendingRequests.length > 0 ? `<span style="background:#ef4444; color:white; border-radius:10px; padding:0.1rem 0.5rem; font-size:0.7rem; font-weight:700;">${pendingRequests.length} new</span>` : ''}
+          </h4>
+        </div>
+  `;
+
+  if (!pendingRequests.length) {
+    html += `
+      <div class="letters-empty-state" style="padding: 1.15rem; border-radius: 12px; border: 1px dashed var(--card-border);">
+        <p style="font-size: 0.85rem; margin: 0; color: var(--text-muted);">✓ No pending access requests. All requests have been reviewed!</p>
+      </div>
+    `;
+  } else {
+    html += `<div style="display:flex; flex-direction:column; gap:0.75rem;">`;
+    pendingRequests.forEach(req => {
+      const email = req.email || '';
+      const name = req.displayName || email.split('@')[0];
+      const initial = name.substring(0, 2).toUpperCase();
+      const reason = req.reason ? escHtml(req.reason) : '<em style="color:var(--text-muted)">No note provided</em>';
+      const timeStr = req.requestedAt?.toDate ? req.requestedAt.toDate().toLocaleString() : 'Recently';
+
+      html += `
+        <div class="access-request-card">
+          <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:0.5rem; flex-wrap:wrap;">
+            <div style="display:flex; align-items:center; gap:0.65rem;">
+              ${req.photoURL 
+                ? `<img src="${req.photoURL}" class="rec-uploader-avatar" style="width:34px; height:34px;" alt="Avatar">` 
+                : `<div class="rec-uploader-avatar" style="background:var(--primary); color:white; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:0.8rem; width:34px; height:34px;">${initial}</div>`
+              }
+              <div>
+                <div style="font-weight:600; color:var(--text-primary); font-size:0.9rem;">${escHtml(name)}</div>
+                <div style="font-size:0.78rem; color:var(--primary);">${escHtml(email)}</div>
+              </div>
+            </div>
+            <div style="font-size:0.72rem; color:var(--text-muted);">
+              ${timeStr}
+            </div>
+          </div>
+
+          <div style="background:rgba(255,255,255,0.03); border:1px solid var(--card-border); padding:0.45rem 0.75rem; border-radius:8px; font-size:0.82rem; color:var(--text-secondary);">
+            <strong style="color:var(--text-muted); font-size:0.75rem;">Note / Reason:</strong> ${reason}
+          </div>
+
+          <div style="display:flex; gap:0.5rem; justify-content:flex-end; flex-wrap:wrap; margin-top:0.25rem;">
+            <button type="button" class="btn-approve-viewer" onclick="handleApproveRequest('${req.id}', '${escHtml(email)}', 'viewer')" title="Grant Viewer (Read-only) Access">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+              Grant Viewer
+            </button>
+            <button type="button" class="btn-approve-editor" onclick="handleApproveRequest('${req.id}', '${escHtml(email)}', 'editor')" title="Grant Editor (View & Upload) Access">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+              Grant Editor
+            </button>
+            <button type="button" class="btn-deny-req" onclick="handleDenyRequest('${req.id}', '${escHtml(email)}')" title="Deny this request">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+              Deny
+            </button>
+          </div>
+        </div>
+      `;
+    });
+    html += `</div>`;
+  }
+
+  html += `
+      </div>
+
+      <!-- ── Direct Authorization Form ── -->
+      <div class="access-add-form" style="margin: 1.25rem 0; padding: 1.1rem; background: rgba(255,255,255,0.02); border: 1px solid var(--card-border); border-radius: 12px;">
+        <label class="input-label" style="font-weight:700; color:var(--text-primary); margin-bottom:0.5rem;">Directly Authorize User by Google Email</label>
+        <div style="display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap;">
+          <input type="email" id="newEditorEmail" class="input-field" placeholder="engineer@gmail.com" style="flex:2; min-width:180px;">
+          <select id="newEditorRole" class="input-field" style="flex:1; min-width:140px; font-size:0.85rem;">
+            <option value="editor" selected>Editor (View &amp; Upload)</option>
+            <option value="viewer">Viewer (Read-only)</option>
+          </select>
+          <button type="button" class="confirm-add-btn" onclick="handleAddEditor()" style="padding:0.68rem 1.25rem; white-space:nowrap;">
             + Grant Access
           </button>
         </div>
-        <p style="font-size: 0.78rem; color: var(--text-muted); margin-top: 0.35rem;">
-          Authorized users can view all repository letters, upload new correspondence, and view full photo attachments.
+        <p style="font-size: 0.78rem; color: var(--text-muted); margin-top: 0.45rem; line-height: 1.4;">
+          <strong>Editor:</strong> Can view, search, upload new letters, and edit correspondence.<br>
+          <strong>Viewer:</strong> Can search, filter, and view all letters and attached photos without upload/edit rights.
         </p>
       </div>
 
-      <h4 style="font-size:0.9rem; font-weight:700; color:var(--text-secondary); margin-bottom:0.75rem;">
-        Authorized Users (${editors.length})
+      <!-- ── Authorized Users List ── -->
+      <h4 style="font-size:0.92rem; font-weight:700; color:var(--text-primary); margin-bottom:0.75rem;">
+        Authorized Users (${authorizedUsers.length})
       </h4>
   `;
 
-  if (!editors.length) {
+  if (!authorizedUsers.length) {
     html += `
       <div class="letters-empty-state" style="padding: 1.5rem;">
-        <p>No additional users authorized yet. Enter a Google email above to grant repository access.</p>
+        <p>No additional users authorized yet. Enter a Google email above or approve a pending request to grant repository access.</p>
       </div>
     `;
   } else {
     html += `<div class="access-editors-grid">`;
-    editors.forEach(email => {
+    authorizedUsers.forEach(u => {
+      const email = u.email;
+      const role = u.role || 'editor';
+      const isViewer = role === 'viewer';
+      const initial = email.substring(0, 2).toUpperCase();
+
       html += `
         <div class="access-editor-item">
-          <div style="display:flex; align-items:center; gap:0.6rem;">
-            <div class="rec-uploader-avatar" style="background:var(--primary); color:white; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:0.8rem;">
-              ${email.substring(0, 2).toUpperCase()}
+          <div style="display:flex; align-items:center; gap:0.65rem; min-width:0;">
+            <div class="rec-uploader-avatar" style="background:${isViewer ? '#10b981' : 'var(--primary)'}; color:white; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:0.8rem; flex-shrink:0;">
+              ${initial}
             </div>
-            <div>
-              <div style="font-weight:600; color:var(--text-primary); font-size:0.88rem;">${escHtml(email)}</div>
-              <span class="role-badge role-editor" style="font-size:0.65rem;">Editor</span>
+            <div style="min-width:0;">
+              <div style="font-weight:600; color:var(--text-primary); font-size:0.88rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+                ${escHtml(email)}
+              </div>
+              <div style="display:flex; align-items:center; gap:0.4rem; margin-top:0.15rem;">
+                <span class="role-badge ${isViewer ? 'role-viewer' : 'role-editor'}" style="font-size:0.65rem;">
+                  ${isViewer ? 'Viewer' : 'Editor'}
+                </span>
+                ${u.grantedAt?.toDate ? `<span style="font-size:0.7rem; color:var(--text-muted);">${u.grantedAt.toDate().toLocaleDateString()}</span>` : ''}
+              </div>
             </div>
           </div>
-          <button type="button" class="rec-delete-btn" onclick="handleRevokeEditor('${escHtml(email)}')" title="Revoke Editor Access">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-1 14H6L5 6"></path><path d="M10 11v6"></path><path d="M14 11v6"></path><path d="M9 6V4h6v2"></path></svg>
-          </button>
+
+          <div style="display:flex; align-items:center; gap:0.4rem; flex-shrink:0;">
+            <button type="button" class="role-toggle-btn" onclick="handleSwitchRole('${escHtml(email)}', '${isViewer ? 'editor' : 'viewer'}')" title="Switch to ${isViewer ? 'Editor' : 'Viewer'}">
+              ⇄ Make ${isViewer ? 'Editor' : 'Viewer'}
+            </button>
+            <button type="button" class="rec-delete-btn" onclick="handleRevokeEditor('${escHtml(email)}')" title="Revoke Access">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-1 14H6L5 6"></path><path d="M10 11v6"></path><path d="M14 11v6"></path><path d="M9 6V4h6v2"></path></svg>
+            </button>
+          </div>
         </div>
       `;
     });
@@ -1224,23 +1540,136 @@ async function renderAccessManagementList() {
   container.innerHTML = html;
 }
 
+// ── Access Management Handlers ─────────────────────────────────────────────
+async function handleSubmitAccessRequest() {
+  const user = typeof getCurrentUser === 'function' ? getCurrentUser() : null;
+  if (!user || !user.email) {
+    alert("Please sign in with Google first to request access.");
+    return;
+  }
+  const reason = document.getElementById('accessRequestReason')?.value.trim() || '';
+  const btn = document.getElementById('btnSubmitAccessReq');
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = 'Submitting request…';
+  }
+  try {
+    const ok = await requestLettersAccess(user, reason);
+    if (ok) {
+      alert("✓ Access request submitted successfully!\n\nThe Super Admin (shresthaprabin178@gmail.com) has been notified. You can refresh this page once approved.");
+      await renderLettersList();
+    }
+  } catch (e) {
+    alert("Error submitting request: " + (e.message || 'Unknown error'));
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = '📩 Send Access Request';
+    }
+  }
+}
+
+async function handleApproveRequest(requestId, email, role) {
+  const roleName = role === 'viewer' ? 'Viewer (Read-Only)' : 'Editor (View & Upload)';
+  if (!confirm(`Approve access for ${email} as ${roleName}?`)) return;
+  const ok = await approveAccessRequest(requestId, email, role);
+  if (ok) {
+    alert(`✓ Approved ${email} with ${roleName} access.`);
+    await renderAccessManagementList();
+    if (typeof updateAuthUI === 'function') updateAuthUI(getCurrentUser());
+  }
+}
+
+async function handleDenyRequest(requestId, email) {
+  if (!confirm(`Deny access request from ${email}?`)) return;
+  const ok = await denyAccessRequest(requestId);
+  if (ok) {
+    alert(`Request from ${email} has been denied.`);
+    await renderAccessManagementList();
+  }
+}
+
 async function handleAddEditor() {
   const email = document.getElementById('newEditorEmail')?.value.trim();
-  if (!email) return;
-  const ok = await grantEditorAccess(email);
+  const role = document.getElementById('newEditorRole')?.value || 'editor';
+  if (!email) {
+    alert("Please enter a valid Google email.");
+    return;
+  }
+  const ok = await grantUserAccess(email, role);
   if (ok) {
-    document.getElementById('newEditorEmail').value = '';
-    alert(`✓ Access granted successfully for ${email}.\nThey can now access the Letters repository and upload correspondence.`);
-    renderAccessManagementList();
+    const input = document.getElementById('newEditorEmail');
+    if (input) input.value = '';
+    const roleLabel = role === 'viewer' ? 'Viewer (Read-Only)' : 'Editor (View & Upload)';
+    alert(`✓ Access granted successfully for ${email} as ${roleLabel}.`);
+    await renderAccessManagementList();
+  }
+}
+
+async function handleSwitchRole(email, newRole) {
+  const roleLabel = newRole === 'viewer' ? 'Viewer (Read-Only)' : 'Editor (View & Upload)';
+  if (!confirm(`Change permission for ${email} to ${roleLabel}?`)) return;
+  const ok = await grantUserAccess(email, newRole);
+  if (ok) {
+    alert(`✓ Role updated to ${roleLabel} for ${email}.`);
+    await renderAccessManagementList();
   }
 }
 
 async function handleRevokeEditor(email) {
-  if (!confirm(`Are you sure you want to revoke editor access for ${email}?`)) return;
+  if (!confirm(`Are you sure you want to revoke repository access for ${email}?`)) return;
   const ok = await revokeEditorAccess(email);
   if (ok) {
     alert(`Access revoked for ${email}.`);
-    renderAccessManagementList();
+    await renderAccessManagementList();
+  }
+}
+
+// ── Upload Tab Access Request Handler ─────────────────────────────────────
+// Handles the "Send Access Request" button inside the Upload panel's no-access form.
+async function handleUploadTabAccessRequest() {
+  const user = typeof getCurrentUser === 'function' ? getCurrentUser() : null;
+  if (!user || !user.email) {
+    alert('Please sign in with Google first to request access.');
+    return;
+  }
+  const reason = document.getElementById('uploadTabAccessReason')?.value.trim() || '';
+  const btn = document.getElementById('btnUploadTabAccessReq');
+  if (btn) { btn.disabled = true; btn.textContent = 'Submitting…'; }
+  try {
+    const ok = await requestLettersAccess(user, reason);
+    if (ok) {
+      alert(`✓ Access request submitted successfully!\n\nThe Super Admin (${typeof SUPER_ADMIN_EMAIL !== 'undefined' ? SUPER_ADMIN_EMAIL : 'shresthaprabin178@gmail.com'}) has been notified. You can refresh this page once approved.`);
+      await renderUploadPanelAccess();
+      await renderLettersList();
+    }
+  } catch (e) {
+    alert('Error submitting request: ' + (e.message || 'Unknown error'));
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '📩 Send Access Request'; }
+  }
+}
+
+// ── Viewer Upgrade Request Handler ─────────────────────────────────────────
+// Lets a Viewer-role user request an upgrade to Editor from the Upload panel banner.
+async function handleViewerUpgradeRequest() {
+  const user = typeof getCurrentUser === 'function' ? getCurrentUser() : null;
+  if (!user || !user.email) {
+    alert('Please sign in with Google first.');
+    return;
+  }
+  const btn = document.getElementById('btnViewerUpgradeReq');
+  if (btn) { btn.disabled = true; btn.textContent = 'Submitting…'; }
+  try {
+    const ok = await requestLettersAccess(user, 'Requesting upgrade from Viewer to Editor access.');
+    if (ok) {
+      alert(`✓ Editor access request submitted!\n\nThe Super Admin (${typeof SUPER_ADMIN_EMAIL !== 'undefined' ? SUPER_ADMIN_EMAIL : 'shresthaprabin178@gmail.com'}) has been notified and will review your request.`);
+      await renderUploadPanelAccess();
+    }
+  } catch (e) {
+    alert('Error submitting upgrade request: ' + (e.message || 'Unknown error'));
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '📩 Request Editor Access'; }
   }
 }
 

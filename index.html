@@ -406,12 +406,14 @@
           <button class="letters-tab" id="tab-access" onclick="switchLettersTab('access')" style="display:none;">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
             Access Control
+            <span class="letters-tab-count" id="accessTabCount" style="background:#ef4444; margin-left:4px;"></span>
           </button>
         </div>
 
         <!-- ── Tab Panel: Upload ── -->
         <div class="letters-tab-panel active" id="panel-upload">
-          <div class="section-card letters-form-card">
+          <div id="uploadViewOnlyNotice"></div>
+          <div class="section-card letters-form-card" id="lettersFormCard">
 
             <!-- File drop zone -->
             <div class="file-dropzone" id="fileDropzone" onclick="document.getElementById('letterFile').click()">
@@ -756,10 +758,10 @@
     </nav>
   </div>
 
-  <script src="js/firebase-db.js?v=7"></script>
-  <script src="js/main.js?v=7"></script>
-  <script src="js/steel-calc.js?v=7"></script>
-  <script src="js/letters.js?v=7"></script>
-  <script src="js/notes.js?v=7"></script>
+  <script src="js/firebase-db.js?v=8"></script>
+  <script src="js/main.js?v=8"></script>
+  <script src="js/steel-calc.js?v=8"></script>
+  <script src="js/letters.js?v=8"></script>
+  <script src="js/notes.js?v=8"></script>
 </body>
 </html>
