@@ -490,12 +490,17 @@ async function revokeEditorAccess(email) {
     return false;
   }
   const cleanEmail = email.trim().toLowerCase();
+  
+  // Optimistically update local cache
   userRolesCache.editors = userRolesCache.editors.filter(e => e.toLowerCase().trim() !== cleanEmail);
   userRolesCache.viewers = userRolesCache.viewers.filter(e => e.toLowerCase().trim() !== cleanEmail);
 
   if (firestoreDb) {
     try {
-      await firestoreDb.collection("authorized_users").doc(cleanEmail).delete().catch(() => {});
+      // Hard delete from authorized_users collection
+      await firestoreDb.collection("authorized_users").doc(cleanEmail).delete();
+      
+      // Update legacy editor lists so snapshots don't re-add the user
       await firestoreDb.collection("settings").doc("roles").set({
         editors: userRolesCache.editors,
         updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
@@ -590,9 +595,18 @@ async function requestLettersAccess(user, reason) {
   try {
     // Already authorized?
     const authDoc = await firestoreDb.collection("authorized_users").doc(cleanEmail).get();
+    const isUpgrade = reason === 'Requesting upgrade from Viewer to Editor access.';
+    
     if (authDoc.exists && authDoc.data()?.active !== false) {
-      alert("You already have access! Please refresh the page or click 'Refresh Access Status'.");
-      return false;
+      const currentRole = authDoc.data()?.role;
+      if (currentRole === 'editor') {
+        alert("You already have Editor access! Please refresh the page.");
+        return false;
+      }
+      if (currentRole === 'viewer' && !isUpgrade) {
+        alert("You already have Viewer access! Please use the 'Request Editor Access' button to upgrade.");
+        return false;
+      }
     }
 
     // Already pending?
