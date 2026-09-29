@@ -163,13 +163,13 @@ async function getAllNotesCombined() {
 }
 
 // ── Init Notes Module ─────────────────────────────────────────────────────
+// Notes are initialized either via DOMContentLoaded (fresh page load)
+// or via updateAuthUI() after the user signs in.
 window.addEventListener('DOMContentLoaded', () => {
-  initNotes();
+  // Only init if a user is already signed in (avoids running before auth)
+  const user = typeof getCurrentUser === 'function' ? getCurrentUser() : null;
+  if (user) initNotes();
 });
-
-if (document.readyState === 'interactive' || document.readyState === 'complete') {
-  initNotes();
-}
 
 function initNotes() {
   renderNotesList();
