@@ -29,6 +29,10 @@
   margin-bottom: 2rem;
 }
 
+.sidebar-top .sidebar-logo {
+  margin-bottom: 0;
+}
+
 .sidebar-nav {
   flex-grow: 1;
   overflow: hidden;
@@ -63,14 +67,26 @@
    ========================================================================== */
 .sidebar.collapsed {
   width: 68px;
+  padding: 1.5rem 0.5rem;
+}
+
+.sidebar.collapsed .sidebar-top {
+  flex-direction: column;
+  gap: 0.75rem;
+  align-items: center;
+  justify-content: center;
 }
 
 .sidebar.collapsed .logo-text,
 .sidebar.collapsed .nav-label,
 .sidebar.collapsed .chevron,
 .sidebar.collapsed .social-links,
-.sidebar.collapsed .theme-toggle .nav-label {
-  display: none;
+.sidebar.collapsed .theme-toggle .nav-label,
+.sidebar.collapsed .user-info-text,
+.sidebar.collapsed .btn-signout span,
+.sidebar.collapsed .btn-sidebar-signin span,
+.sidebar.collapsed .build-timestamp {
+  display: none !important;
 }
 
 .sidebar.collapsed .sidebar-logo {
@@ -80,7 +96,28 @@
 .sidebar.collapsed .nav-item button,
 .sidebar.collapsed .nav-sub-item button {
   justify-content: center;
-  padding: 0.85rem;
+  padding: 0.85rem 0.5rem;
+}
+
+.sidebar.collapsed .sidebar-user-card {
+  padding: 0.5rem 0.25rem;
+  align-items: center;
+  justify-content: center;
+}
+
+.sidebar.collapsed .user-card-top {
+  justify-content: center;
+  width: 100%;
+}
+
+.sidebar.collapsed .btn-signout {
+  padding: 0.45rem;
+  justify-content: center;
+}
+
+.sidebar.collapsed .btn-sidebar-signin {
+  padding: 0.5rem;
+  justify-content: center;
 }
 
 .sidebar.collapsed .nav-submenu {
@@ -190,10 +227,11 @@
   padding: 0.85rem 1.25rem;
   background: var(--glass-bg);
   backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--glass-border);
   position: sticky;
   top: 0;
-  z-index: 50;
+  z-index: 100;
 }
 
 .hamburger {

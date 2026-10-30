@@ -19,7 +19,7 @@ function openLightboxDirect(src, fileName, subject, dateDisplay) {
       <div class="lightbox-header">
         <div class="lightbox-header-info">
           <h4 class="lightbox-title">${escHtml(subject || fileName || 'Photo Document')}</h4>
-          <span class="lightbox-sub">${dateDisplay ? \`📅 \${escHtml(dateDisplay)} &nbsp;·&nbsp; \` : ''}📎 ${escHtml(fileName || 'photo')}</span>
+          <span class="lightbox-sub">${dateDisplay ? `📅 ${escHtml(dateDisplay)} &nbsp;·&nbsp; ` : ''}📎 ${escHtml(fileName || 'photo')}</span>
         </div>
         <div class="lightbox-actions">
           <a href="${src}" download="${escHtml(fileName || 'letter-photo')}" class="lightbox-btn download-btn">

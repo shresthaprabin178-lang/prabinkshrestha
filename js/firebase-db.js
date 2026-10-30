@@ -944,6 +944,28 @@ function listenToNotes(email, onUpdate) {
 }
 
 // ── Auth UI Updates & Topbar Logout Sync ──────────────────────────────────
+function showAuthGate() {
+  const authGate = document.getElementById("authGate");
+  if (authGate) authGate.classList.remove("hidden");
+}
+
+function hideAuthGate() {
+  const authGate = document.getElementById("authGate");
+  if (authGate) authGate.classList.add("hidden");
+}
+
+function continueAsGuest() {
+  const guestUser = {
+    uid: 'guest-' + Date.now(),
+    displayName: 'Guest Visitor',
+    email: 'guest@prabinkshrestha.com.np',
+    photoURL: null,
+    isGuest: true
+  };
+  setLoggedInUser(guestUser);
+  hideAuthGate();
+}
+
 function updateAuthUI(user) {
   const authGate = document.getElementById("authGate");
   const userProfileCard = document.getElementById("sidebarUserProfile");
@@ -954,45 +976,63 @@ function updateAuthUI(user) {
   const userRoleBadge = document.getElementById("userRoleBadge");
   const accessTabBtn = document.getElementById("tab-access");
   const topbarLogoutBtn = document.getElementById("mobileTopbarLogout");
+  const topbarSignInBtn = document.getElementById("mobileTopbarSignIn");
+  const sidebarSignInBtn = document.getElementById("sidebarSignInBtn");
 
   if (user) {
     // Hide auth gate
     if (authGate) authGate.classList.add("hidden");
 
-    // Show sidebar user profile
+    // Show sidebar user profile, hide login button
     if (userProfileCard) userProfileCard.style.display = "flex";
-    if (topbarLogoutBtn) topbarLogoutBtn.style.display = "inline-flex";
+    if (sidebarSignInBtn) sidebarSignInBtn.style.display = "none";
+
+    const isGuest = !!user.isGuest;
+
+    if (topbarLogoutBtn) topbarLogoutBtn.style.display = isGuest ? "none" : "inline-flex";
+    if (topbarSignInBtn) topbarSignInBtn.style.display = isGuest ? "inline-flex" : "none";
 
     // Populate user details
     const name = user.displayName || (user.email ? user.email.split('@')[0] : 'User');
     if (userNameEl) userNameEl.textContent = name;
-    if (userEmailEl) userEmailEl.textContent = user.email || '';
+    if (userEmailEl) {
+      if (isGuest) {
+        userEmailEl.innerHTML = '<button type="button" class="btn-guest-signin-link" onclick="showAuthGate()">Sign In with Google</button>';
+      } else {
+        userEmailEl.textContent = user.email || '';
+      }
+    }
 
     if (user.photoURL && userAvatar) {
       userAvatar.src = user.photoURL;
       userAvatar.style.display = "block";
       if (userAvatarFallback) userAvatarFallback.style.display = "none";
     } else if (userAvatarFallback) {
-      userAvatarFallback.textContent = name.substring(0, 2).toUpperCase();
+      userAvatarFallback.textContent = isGuest ? "GV" : name.substring(0, 2).toUpperCase();
       userAvatarFallback.style.display = "flex";
       if (userAvatar) userAvatar.style.display = "none";
     }
 
     // Role Badge
     if (userRoleBadge) {
-      const role = typeof getUserLettersRole === 'function' ? getUserLettersRole(user) : null;
-      if (role === 'superadmin') {
-        userRoleBadge.textContent = "Super Admin";
-        userRoleBadge.className = "role-badge role-superadmin";
-      } else if (role === 'editor') {
-        userRoleBadge.textContent = "Editor";
-        userRoleBadge.className = "role-badge role-editor";
-      } else if (role === 'viewer') {
-        userRoleBadge.textContent = "Viewer";
+      if (isGuest) {
+        userRoleBadge.textContent = "Guest Mode";
         userRoleBadge.className = "role-badge role-viewer";
       } else {
-        userRoleBadge.textContent = "No Access";
-        userRoleBadge.className = "role-badge role-noaccess";
+        const role = typeof getUserLettersRole === 'function' ? getUserLettersRole(user) : null;
+        if (role === 'superadmin') {
+          userRoleBadge.textContent = "Super Admin";
+          userRoleBadge.className = "role-badge role-superadmin";
+        } else if (role === 'editor') {
+          userRoleBadge.textContent = "Editor";
+          userRoleBadge.className = "role-badge role-editor";
+        } else if (role === 'viewer') {
+          userRoleBadge.textContent = "Viewer";
+          userRoleBadge.className = "role-badge role-viewer";
+        } else {
+          userRoleBadge.textContent = "Viewer";
+          userRoleBadge.className = "role-badge role-noaccess";
+        }
       }
     }
 
@@ -1005,11 +1045,13 @@ function updateAuthUI(user) {
       }
     }
   } else {
-    // Show auth gate
+    // Not signed in: show auth gate initially, but allow fallback
     if (authGate) authGate.classList.remove("hidden");
     if (userProfileCard) userProfileCard.style.display = "none";
+    if (sidebarSignInBtn) sidebarSignInBtn.style.display = "inline-flex";
     if (accessTabBtn) accessTabBtn.style.display = "none";
     if (topbarLogoutBtn) topbarLogoutBtn.style.display = "none";
+    if (topbarSignInBtn) topbarSignInBtn.style.display = "inline-flex";
   }
 
   // Refresh lists

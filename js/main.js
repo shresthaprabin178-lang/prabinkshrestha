@@ -4,6 +4,8 @@
 let sidebarCollapsed = false;
 let toolsMenuOpen    = false;
 let mobileSidebarOpen = false;
+let autoCollapsedForCivilEst = false;
+let userSidebarCollapsedPreference = false;
 
 const VIEW_LABELS = {
   profile:    'Profile',
@@ -28,8 +30,8 @@ function switchView(viewName) {
   const mobileNavEl = document.getElementById(`bnav-${viewName}`);
   if (mobileNavEl) mobileNavEl.classList.add('active');
 
-  // If a tool sub-item is active, also highlight the group parent
-  if (viewName === 'steel-calc' || viewName === 'civil-est') {
+  // If a tool sub-item or tools hub is active, also highlight the group parent
+  if (viewName === 'steel-calc' || viewName === 'civil-est' || viewName === 'tools') {
     const group = document.getElementById('nav-tools-group');
     if (group) group.classList.add('active');
     openToolsMenu(); // keep submenu open
@@ -49,7 +51,20 @@ function switchView(viewName) {
 
   // Civil Estimator: collapse sidebar so iframe gets maximum space
   if (viewName === 'civil-est') {
-    collapseSidebar();
+    if (!sidebarCollapsed) {
+      collapseSidebar();
+      autoCollapsedForCivilEst = true;
+    }
+  } else if (autoCollapsedForCivilEst && !userSidebarCollapsedPreference) {
+    expandSidebar();
+    autoCollapsedForCivilEst = false;
+  }
+
+  // Refresh view-specific dynamic content
+  if (viewName === 'notes' && typeof renderNotesList === 'function') {
+    renderNotesList();
+  } else if (viewName === 'letters' && typeof renderLettersList === 'function') {
+    renderLettersList();
   }
 
   // Close mobile sidebar
@@ -83,7 +98,22 @@ function expandSidebar() {
 }
 
 function toggleSidebar() {
-  sidebarCollapsed ? expandSidebar() : collapseSidebar();
+  if (sidebarCollapsed) {
+    expandSidebar();
+    userSidebarCollapsedPreference = false;
+  } else {
+    collapseSidebar();
+    userSidebarCollapsedPreference = true;
+  }
+}
+
+function handleToolsClick() {
+  if (sidebarCollapsed) {
+    expandSidebar();
+    userSidebarCollapsedPreference = false;
+  }
+  toggleToolsMenu();
+  switchView('tools');
 }
 
 // ==========================================================================
@@ -172,6 +202,10 @@ function handleBreakpoint(e) {
   if (e.matches) {
     // mobile — sidebar driven by mobile-open class only
     sidebar.classList.remove('collapsed');
+    sidebarCollapsed = false;
+  } else {
+    // desktop — close mobile sidebar if open
+    closeMobileSidebar();
   }
 }
 

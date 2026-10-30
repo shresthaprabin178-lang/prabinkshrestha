@@ -12,12 +12,12 @@
       document.documentElement.setAttribute('data-theme', t);
     })();
   </script>
-  <link rel="stylesheet" href="css/base.css?v=9">
-  <link rel="stylesheet" href="css/sidebar.css?v=9">
-  <link rel="stylesheet" href="css/letters.css?v=9">
-  <link rel="stylesheet" href="css/auth.css?v=9">
-  <link rel="stylesheet" href="css/notes.css?v=9">
-  <link rel="stylesheet" href="css/responsive.css?v=9">
+  <link rel="stylesheet" href="css/base.css?v=12">
+  <link rel="stylesheet" href="css/sidebar.css?v=12">
+  <link rel="stylesheet" href="css/letters.css?v=12">
+  <link rel="stylesheet" href="css/auth.css?v=12">
+  <link rel="stylesheet" href="css/notes.css?v=12">
+  <link rel="stylesheet" href="css/responsive.css?v=12">
   
   <!-- Firebase SDKs (Compat version for vanilla JS) -->
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
@@ -37,6 +37,7 @@
   ============================================================ -->
   <div class="auth-gate-overlay" id="authGate">
     <div class="auth-card">
+      <button type="button" class="auth-card-close" onclick="continueAsGuest()" title="Explore Portfolio as Guest">✕</button>
       <div class="auth-brand">
         <div class="auth-logo-icon">PS</div>
         <div class="auth-brand-text">
@@ -47,7 +48,7 @@
 
       <div class="auth-body">
         <h3>Portal Access</h3>
-        <p>Please sign in with your Google account to access tools, correspondence archives, and notes.</p>
+        <p>Sign in with your Google account to access tools, correspondence archives, and notes, or explore the portfolio as a guest.</p>
 
         <button type="button" class="btn-google-login" onclick="signInWithGoogle()">
           <svg width="20" height="20" viewBox="0 0 24 24">
@@ -57,6 +58,28 @@
             <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
           </svg>
           <span>Continue with Google</span>
+        </button>
+
+        <div class="auth-divider">
+          <span>OR</span>
+        </div>
+
+        <button type="button" class="btn-guest-login" onclick="continueAsGuest()">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle>
+          </svg>
+          <span>Explore Portfolio as Guest</span>
+        </button>
+
+        <button type="button" class="btn-quick-admin" onclick="signInAsCustomUser('shresthaprabin178@gmail.com', 'Prabink Shrestha')">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+          </svg>
+          <span>Admin Quick Sign-In (Prabink S.)</span>
+        </button>
+
+        <button type="button" class="btn-fb-config-link" onclick="showFirebaseConfigModal()">
+          ⚙️ Firebase Configuration
         </button>
       </div>
     </div>
@@ -103,7 +126,7 @@
 
           <!-- Tools Hub (collapsible parent) -->
           <li class="nav-item nav-group" id="nav-tools-group">
-            <button class="nav-group-btn" onclick="toggleToolsMenu()">
+            <button class="nav-group-btn" onclick="handleToolsClick()">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <rect x="3" y="3" width="7" height="9" rx="1"></rect>
                 <rect x="14" y="3" width="7" height="5" rx="1"></rect>
@@ -117,6 +140,17 @@
             </button>
             <!-- Sub-items -->
             <ul class="nav-submenu" id="toolsSubmenu">
+              <li class="nav-sub-item" id="nav-tools">
+                <button onclick="switchView('tools')">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="3" width="7" height="9" rx="1"></rect>
+                    <rect x="14" y="3" width="7" height="5" rx="1"></rect>
+                    <rect x="14" y="12" width="7" height="9" rx="1"></rect>
+                    <rect x="3" y="16" width="7" height="5" rx="1"></rect>
+                  </svg>
+                  <span class="nav-label">Hub Overview</span>
+                </button>
+              </li>
               <li class="nav-sub-item" id="nav-steel-calc">
                 <button onclick="switchView('steel-calc')">
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -167,6 +201,12 @@
 
       <!-- Sidebar User Profile & Footer -->
       <div class="sidebar-footer">
+
+        <!-- Sign In Button (shown when in guest mode / logged out) -->
+        <button type="button" class="btn-sidebar-signin" id="sidebarSignInBtn" onclick="showAuthGate()" style="display:none;" title="Sign In with Google">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path><polyline points="10 17 15 12 10 7"></polyline><line x1="15" y1="12" x2="3" y2="12"></line></svg>
+          <span>Sign In</span>
+        </button>
 
         <!-- Logged-in User Profile Card -->
         <div class="sidebar-user-card" id="sidebarUserProfile" style="display:none;">
@@ -227,6 +267,10 @@
       <span class="mobile-page-title" id="mobilePageTitle">Profile</span>
       
       <div style="display:flex; align-items:center; gap:0.4rem;">
+        <button type="button" class="topbar-signin-btn" id="mobileTopbarSignIn" onclick="showAuthGate()" title="Sign In" style="display:none;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path><polyline points="10 17 15 12 10 7"></polyline><line x1="15" y1="12" x2="3" y2="12"></line></svg>
+          <span>Sign In</span>
+        </button>
         <button type="button" class="topbar-logout-btn" id="mobileTopbarLogout" onclick="signOutUser()" title="Logout" style="display:none;">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
         </button>
@@ -763,14 +807,14 @@
     </nav>
   </div>
 
-  <script src="js/utils.js?v=8"></script>
-  <script src="js/firebase-db.js?v=8"></script>
-  <script src="js/main.js?v=8"></script>
-  <script src="js/steel-calc.js?v=8"></script>
-  <script src="js/letters-data.js?v=8"></script>
-  <script src="js/letters-ui.js?v=8"></script>
-  <script src="js/letters.js?v=8"></script>
-  <script src="js/letters-admin.js?v=8"></script>
-  <script src="js/notes.js?v=8"></script>
+  <script src="js/utils.js?v=12"></script>
+  <script src="js/firebase-db.js?v=12"></script>
+  <script src="js/main.js?v=12"></script>
+  <script src="js/steel-calc.js?v=12"></script>
+  <script src="js/letters-data.js?v=12"></script>
+  <script src="js/letters-ui.js?v=12"></script>
+  <script src="js/letters.js?v=12"></script>
+  <script src="js/letters-admin.js?v=12"></script>
+  <script src="js/notes.js?v=12"></script>
 </body>
 </html>

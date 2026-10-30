@@ -79,8 +79,8 @@ function calculateProperties() {
     const tw = parseFloat(document.getElementById('ibTw').value) || 1;
     const tf = parseFloat(document.getElementById('ibTf').value) || 1;
     
-    const actualTw = Math.min(tw, B - 1);
-    const actualTf = Math.min(tf, H / 2 - 0.5);
+    const actualTw = Math.max(0.5, Math.min(tw, B - 1));
+    const actualTf = Math.max(0.5, Math.min(tf, H / 2 - 0.5));
 
     area = 2 * B * actualTf + (H - 2 * actualTf) * actualTw;
     ix = (B * Math.pow(H, 3) - (B - actualTw) * Math.pow(H - 2 * actualTf, 3)) / 12;
@@ -98,7 +98,7 @@ function calculateProperties() {
     const y0 = (240 - sh) / 2;
 
     svgMarkup = `
-      <svg width="240" height="240" viewBox="0 0 240 240">
+      <svg width="100%" height="100%" viewBox="0 0 240 240">
         <path d="M ${x0} ${y0} 
                  h ${sb} 
                  v ${stf} 
@@ -112,7 +112,7 @@ function calculateProperties() {
                  v ${-(sh - 2 * stf)} 
                  h ${-(sb - stw)/2} 
                  z" 
-              fill="none" stroke="var(--primary)" stroke-width="2.5" fill-opacity="0.1"/>
+              fill="var(--primary)" fill-opacity="0.18" stroke="var(--primary)" stroke-width="2.5"/>
         <circle cx="120" cy="120" r="4" fill="var(--secondary)"/>
         <line x1="120" y1="20" x2="120" y2="220" stroke="var(--secondary)" stroke-dasharray="3 3" stroke-width="1"/>
         <line x1="20" y1="120" x2="220" y2="120" stroke="var(--secondary)" stroke-dasharray="3 3" stroke-width="1"/>
@@ -125,8 +125,8 @@ function calculateProperties() {
     const tw = parseFloat(document.getElementById('chTw').value) || 1;
     const tf = parseFloat(document.getElementById('chTf').value) || 1;
     
-    const actualTw = Math.min(tw, B - 1);
-    const actualTf = Math.min(tf, H / 2 - 0.5);
+    const actualTw = Math.max(0.5, Math.min(tw, B - 1));
+    const actualTf = Math.max(0.5, Math.min(tf, H / 2 - 0.5));
 
     area = 2 * B * actualTf + (H - 2 * actualTf) * actualTw;
     const xc = (2 * (B * actualTf) * (B / 2) + (H - 2 * actualTf) * actualTw * (actualTw / 2)) / area;
@@ -148,7 +148,7 @@ function calculateProperties() {
     const y0 = (240 - sh) / 2;
 
     svgMarkup = `
-      <svg width="240" height="240" viewBox="0 0 240 240">
+      <svg width="100%" height="100%" viewBox="0 0 240 240">
         <path d="M ${x0} ${y0} 
                  h ${sb} 
                  v ${stf} 
@@ -158,7 +158,7 @@ function calculateProperties() {
                  v ${stf} 
                  h ${-sb} 
                  z" 
-              fill="none" stroke="var(--primary)" stroke-width="2.5" fill-opacity="0.1"/>
+              fill="var(--primary)" fill-opacity="0.18" stroke="var(--primary)" stroke-width="2.5"/>
         <circle cx="${x0 + sxc}" cy="120" r="4" fill="var(--secondary)"/>
         <line x1="${x0 + sxc}" y1="20" x2="${x0 + sxc}" y2="220" stroke="var(--secondary)" stroke-dasharray="3 3" stroke-width="1"/>
         <line x1="20" y1="120" x2="220" y2="120" stroke="var(--secondary)" stroke-dasharray="3 3" stroke-width="1"/>
@@ -170,7 +170,7 @@ function calculateProperties() {
     const B = parseFloat(document.getElementById('angB').value) || 1;
     const t = parseFloat(document.getElementById('angT').value) || 1;
     
-    const actualT = Math.min(t, Math.min(H, B) - 0.5);
+    const actualT = Math.max(0.5, Math.min(t, Math.min(H, B) - 0.5));
 
     const a1 = (H - actualT) * actualT;
     const x1 = actualT / 2;
@@ -203,7 +203,7 @@ function calculateProperties() {
     const y0 = (240 - sh) / 2;
 
     svgMarkup = `
-      <svg width="240" height="240" viewBox="0 0 240 240">
+      <svg width="100%" height="100%" viewBox="0 0 240 240">
         <path d="M ${x0} ${y0} 
                  h ${st} 
                  v ${sh - st} 
@@ -211,7 +211,7 @@ function calculateProperties() {
                  v ${st} 
                  h ${-sb} 
                  z" 
-              fill="none" stroke="var(--primary)" stroke-width="2.5" fill-opacity="0.1"/>
+              fill="var(--primary)" fill-opacity="0.18" stroke="var(--primary)" stroke-width="2.5"/>
         <circle cx="${x0 + sxc}" cy="${y0 + sh - syc}" r="4" fill="var(--secondary)"/>
         <line x1="${x0 + sxc}" y1="20" x2="${x0 + sxc}" y2="220" stroke="var(--secondary)" stroke-dasharray="3 3" stroke-width="1"/>
         <line x1="20" y1="${y0 + sh - syc}" x2="220" y2="${y0 + sh - syc}" stroke="var(--secondary)" stroke-dasharray="3 3" stroke-width="1"/>
@@ -223,7 +223,7 @@ function calculateProperties() {
     const B = parseFloat(document.getElementById('boxB').value) || 1;
     const t = parseFloat(document.getElementById('boxT').value) || 1;
     
-    const actualT = Math.min(t, Math.min(H, B)/2 - 0.5);
+    const actualT = Math.max(0.5, Math.min(t, Math.min(H, B)/2 - 0.5));
 
     area = (B * H) - (B - 2 * actualT) * (H - 2 * actualT);
     ix = (B * Math.pow(H, 3) - (B - 2 * actualT) * Math.pow(H - 2 * actualT, 3)) / 12;
@@ -240,9 +240,9 @@ function calculateProperties() {
     const y0 = (240 - sh) / 2;
 
     svgMarkup = `
-      <svg width="240" height="240" viewBox="0 0 240 240">
-        <rect x="${x0}" y="${y0}" width="${sb}" height="${sh}" fill="none" stroke="var(--primary)" stroke-width="2.5" fill-opacity="0.1"/>
-        <rect x="${x0 + st}" y="${y0 + st}" width="${sb - 2*st}" height="${sh - 2*st}" fill="var(--bg-color)" stroke="var(--primary)" stroke-width="1.5"/>
+      <svg width="100%" height="100%" viewBox="0 0 240 240">
+        <path d="M ${x0} ${y0} h ${sb} v ${sh} h ${-sb} z M ${x0 + st} ${y0 + st} v ${sh - 2*st} h ${sb - 2*st} v ${-(sh - 2*st)} z"
+              fill="var(--primary)" fill-opacity="0.18" fill-rule="evenodd" stroke="var(--primary)" stroke-width="2.5"/>
         <circle cx="120" cy="120" r="4" fill="var(--secondary)"/>
         <line x1="120" y1="20" x2="120" y2="220" stroke="var(--secondary)" stroke-dasharray="3 3" stroke-width="1"/>
         <line x1="20" y1="120" x2="220" y2="120" stroke="var(--secondary)" stroke-dasharray="3 3" stroke-width="1"/>
@@ -253,7 +253,7 @@ function calculateProperties() {
     const D = parseFloat(document.getElementById('pipeD').value) || 1;
     const t = parseFloat(document.getElementById('pipeT').value) || 1;
     
-    const actualT = Math.min(t, D / 2 - 0.5);
+    const actualT = Math.max(0.5, Math.min(t, D / 2 - 0.5));
     const d = D - 2 * actualT;
 
     area = Math.PI * (Math.pow(D, 2) - Math.pow(d, 2)) / 4;
@@ -266,11 +266,13 @@ function calculateProperties() {
     const scale = 200 / D;
     const sD = D * scale;
     const sd = d * scale;
+    const rOut = sD / 2;
+    const rIn = sd / 2;
 
     svgMarkup = `
-      <svg width="240" height="240" viewBox="0 0 240 240">
-        <circle cx="120" cy="120" r="${sD/2}" fill="none" stroke="var(--primary)" stroke-width="2.5" fill-opacity="0.1"/>
-        <circle cx="120" cy="120" r="${sd/2}" fill="var(--bg-color)" stroke="var(--primary)" stroke-width="1.5"/>
+      <svg width="100%" height="100%" viewBox="0 0 240 240">
+        <path d="M 120 ${120 - rOut} A ${rOut} ${rOut} 0 1 0 120 ${120 + rOut} A ${rOut} ${rOut} 0 1 0 120 ${120 - rOut} Z M 120 ${120 - rIn} A ${rIn} ${rIn} 0 1 1 120 ${120 + rIn} A ${rIn} ${rIn} 0 1 1 120 ${120 - rIn} Z"
+              fill="var(--primary)" fill-opacity="0.18" fill-rule="evenodd" stroke="var(--primary)" stroke-width="2.5"/>
         <circle cx="120" cy="120" r="4" fill="var(--secondary)"/>
         <line x1="120" y1="20" x2="120" y2="220" stroke="var(--secondary)" stroke-dasharray="3 3" stroke-width="1"/>
         <line x1="20" y1="120" x2="220" y2="120" stroke="var(--secondary)" stroke-dasharray="3 3" stroke-width="1"/>
